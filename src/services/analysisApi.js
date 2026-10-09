@@ -13,7 +13,7 @@
  * and mapped to the internal UI shape.
  */
 
-import { buildMockResult, RISK_LEVELS } from '../data/mockResults'
+import { buildMockResult } from '../data/mockResults'
 
 /** True when the frontend should use local demonstration data. */
 export const USE_MOCK = String(import.meta.env.VITE_USE_MOCK ?? 'true').toLowerCase() !== 'false'
@@ -322,7 +322,7 @@ function normalizeResponse(data, requestedUrl) {
     findings,
     reputation,
     advice,
-    scanned_at,
+    scanned_at: scannedAt,
     // API mode results are backend assessments, not browser simulations.
     demo: null,
     raw: data,

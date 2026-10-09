@@ -19,23 +19,11 @@ function navClass({ isActive }) {
   ].join(' ')
 }
 
-function DemoBadge({ compact = false }) {
-  if (!USE_MOCK) {
-    return (
-      <span
-        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700"
-        title="The frontend is configured to call the FastAPI backend (VITE_USE_MOCK=false)."
-      >
-        <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-        API mode
-      </span>
-    )
-  }
+function DemoBadge() {
+  if (!USE_MOCK) return null
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700 ${
-        compact ? '' : ''
-      }`}
+      className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700"
       title="Mock data is in use: results are simulated locally and no backend is connected."
     >
       <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />
