@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>LinkShield AI</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4Zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8Z"
+          />
+        </svg>
+        <span>LinkShield AI</span>
+      </div>
+      <button id="btn-options" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+    </header>
+
+    <section id="page-info" class="page-info">
+      <div id="page-url" class="page-url">Detecting current page…</div>
+    </section>
+
+    <div class="controls">
+      <button id="btn-scan" class="btn primary">Scan Current Page</button>
+      <button id="btn-rescan" class="btn ghost" hidden>Rescan</button>
+    </div>
+
+    <!-- Loading state -->
+    <section id="state-loading" class="panel" hidden>
+      <div class="spinner" aria-hidden="true"></div>
+      <p>Scanning… asking the LinkShield AI backend to analyze this URL.</p>
+    </section>
+
+    <!-- Error states -->
+    <section id="state-error" class="panel error" hidden>
+      <div class="error-icon" aria-hidden="true">!</div>
+      <h2 id="error-title">Scan failed</h2>
+      <p id="error-detail"></p>
+      <p class="muted" id="error-hint"></p>
+    </section>
+
+    <!-- Results -->
+    <section id="state-result" class="panel" hidden>
+      <div id="unverified-banner" class="banner" hidden></div>
+
+      <div class="verdict-row">
+        <span id="verdict-chip" class="chip">—</span>
+        <span id="risk-chip" class="chip subtle">—</span>
+      </div>
+
+      <div class="score-block">
+        <div class="score-track"><div id="score-fill" class="fill"></div></div>
+        <div id="score-label" class="score-label"></div>
+      </div>
+
+      <div id="result-url" class="result-url"></div>
+
+      <div id="reasons-block" class="block" hidden>
+        <h3>Why</h3>
+        <ul id="reasons" class="reasons"></ul>
+      </div>
+
+      <div id="findings-block" class="block" hidden>
+        <h3>Findings</h3>
+        <ul id="findings" class="findings"></ul>
+      </div>
+
+      <div id="advice-block" class="block" hidden>
+        <h3>Recommendation</h3>
+        <p id="advice" class="advice"></p>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <span id="backend-label" class="muted"></span>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

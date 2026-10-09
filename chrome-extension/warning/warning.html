@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LinkShield AI — Warning</title>
+    <link rel="stylesheet" href="warning.css" />
+  </head>
+  <body>
+    <main class="card" role="alertdialog" aria-labelledby="headline">
+      <header class="brand">
+        <svg class="shield" viewBox="0 0 24 24" aria-hidden="true" width="40" height="40">
+          <path
+            fill="currentColor"
+            d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4Zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8Z"
+          />
+        </svg>
+        <span class="brand-name">LinkShield AI</span>
+      </header>
+
+      <div id="unverified-banner" class="banner warn" hidden></div>
+
+      <h1 id="headline">…</h1>
+      <p id="subline" class="subline"></p>
+
+      <div class="url-box">
+        <div class="hostname" id="hostname"></div>
+        <div class="url" id="url"></div>
+      </div>
+
+      <div id="score-block" class="score-block" hidden>
+        <div class="score-track"><div id="score-fill" class="fill"></div></div>
+        <div id="score-label" class="score-label"></div>
+      </div>
+
+      <div id="chips" class="chips"></div>
+
+      <section id="reasons-block" class="block">
+        <h2>Why this was flagged</h2>
+        <ul id="reasons" class="reasons"></ul>
+      </section>
+
+      <section id="findings-block" class="block" hidden>
+        <h2>Detection findings</h2>
+        <ul id="findings" class="findings"></ul>
+      </section>
+
+      <section id="advice-block" class="block" hidden>
+        <h2>Recommendation</h2>
+        <p id="advice" class="advice"></p>
+      </section>
+
+      <div id="actions" class="actions"></div>
+      <p id="continue-error" class="continue-error" hidden></p>
+
+      <footer class="footer">
+        Checked by your LinkShield AI backend. The extension never opened this
+        URL itself.
+      </footer>
+    </main>
+    <script type="module" src="warning.js"></script>
+  </body>
+</html>
