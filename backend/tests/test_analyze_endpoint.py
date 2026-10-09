@@ -82,8 +82,9 @@ def test_no_known_threat_response(client_safe):
     assert data["reputation_status"] == "no_known_threat"
     assert data["risk_level"] == "low"
     assert data["score"] == 0
-    # Clean reputation + clean detection = the only path to verified_safe.
-    assert data["verdict"] == "verified_safe"
+    # No known threat is NOT proof of safety: unknown, explicitly caveated.
+    assert data["verdict"] == "unknown"
+    assert "No known threats found; safety is not guaranteed." in data["advice"]
 
 
 def test_unavailable_response(client_unavailable):

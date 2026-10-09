@@ -41,15 +41,25 @@ Interactive API docs (auto-generated): http://127.0.0.1:8000/docs
 | Verdict | Emitted when | Evidence required |
 |---|---|---|
 | `confirmed_malicious` | Google Safe Browsing returned a threat-list match | Reliable external evidence — the only status that claims confirmed malice |
-| `suspicious` | Detection engines produced at least one finding | Rule matches to review; does **not** claim confirmed malice |
-| `unknown` | Nothing matched but evidence is insufficient: reputation check unavailable/failed, or a detection engine crashed (needs verification) | Never emitted as "safe" |
-| `verified_safe` | Reputation lookup **completed** with no known-threat match **and** detection ran to completion with zero findings | Two independent clean signals; advice still states it is not an absolute guarantee |
+| `suspicious` | Detection engines produced at least one **strong** finding (anything except a lone weak signal) | Rule matches to review; does **not** claim confirmed malice |
+| `unknown` | Weak-signal-only findings, an unavailable/failed reputation check, a crashed detection engine, or a completed lookup with no known-threat match | Never emitted as "safe"; means *needs verification* |
+| `verified_safe` | Reserved for an explicit, documented positive-verification step | **Not emitted by the current implementation** — "no Google Safe Browsing match" does not prove a URL is safe |
 
 Key guarantees:
 
 - A URL is **never** labelled safe merely because no suspicious pattern
-  matched — with no findings and no completed reputation lookup the
-  verdict is `unknown`.
+  matched — a completed lookup with no known threat is reported as
+  `unknown` with the advice *"No known threats found; safety is not
+  guaranteed."*
+- **Weak signals alone do not create a suspicious verdict.** Credential-lure
+  keywords (`login`, `verify`, `account`, ...) are treated as weak evidence:
+  on their own the verdict is `unknown` (needs verification). A keyword only
+  contributes to `suspicious` when corroborated by an independent signal.
+- **`risk_level` cannot contradict `score`, `verdict`, or finding severity.**
+  The score uses fixed thresholds (`>=70` high, `>=40` medium, else low) and a
+  single HIGH/CRITICAL finding imposes a MEDIUM floor, so a HIGH finding is
+  never reported under a LOW risk level. Heuristic findings top out at MEDIUM:
+  only a provider-confirmed threat reaches HIGH.
 - If a detection engine crashes, the result is treated as *missing*
   evidence: `unknown` (and `risk_level: unknown` when there are no other
   findings), never `verified_safe`.

@@ -163,17 +163,81 @@ def test_offsite_redirect_detected_through_endpoint(client_safe):
     assert "redirect_to_external_host" in rule_ids
 
 
-def test_normal_url_with_clean_reputation_is_verified_safe(client_safe):
-    """Two independent clean signals -> verified_safe, still caveated."""
+def test_normal_url_with_clean_reputation_is_unknown_not_verified_safe(client_safe):
+    """GSB 'no match' is not proof of safety -> unknown, clearly caveated."""
     resp = client_safe.post("/api/analyze", json={"url": BENIGN_URL})
     assert resp.status_code == 200
     data = resp.json()
     assert data["findings"] == []
     assert data["reputation_status"] == "no_known_threat"
-    assert data["verdict"] == "verified_safe"
+    assert data["verdict"] == "unknown"
     assert data["risk_level"] == "low"
-    # Never an unconditional safety claim.
-    assert "not an absolute guarantee" in data["advice"]
+    # The user-facing explanation is explicit that this is not a guarantee.
+    assert "No known threats found; safety is not guaranteed." in data["advice"]
+
+
+# --- Regression: reported risk/verdict consistency cases ---------------------
+
+LOOKALIKE_BARE_URL = "https://paypa1.com/"
+USERINFO_TRICK_URL = "https://example.com@evil.test/"
+LOGIN_KEYWORD_URL = "https://login.example.com/"
+KEYWORD_LURE_URL = "https://secure-account-verify.example.com/login"
+
+
+def test_paypa1_lookalike_is_suspicious_medium_not_low(client_safe):
+    """A HIGH lookalike finding must not be reported under a LOW risk level."""
+    resp = client_safe.post("/api/analyze", json={"url": LOOKALIKE_BARE_URL})
+    assert resp.status_code == 200
+    data = resp.json()
+    lookalike = [f for f in data["findings"] if f["rule_id"] == "lookalike_domain"]
+    assert lookalike and lookalike[0]["severity"] == "high"
+    assert data["verdict"] == "suspicious"
+    assert data["score"] == 30
+    assert data["risk_level"] == "medium"
+
+
+def test_userinfo_trick_is_suspicious_medium_not_low(client_safe):
+    resp = client_safe.post("/api/analyze", json={"url": USERINFO_TRICK_URL})
+    assert resp.status_code == 200
+    data = resp.json()
+    trick = [f for f in data["findings"] if f["rule_id"] == "userinfo_trick"]
+    assert trick and trick[0]["severity"] == "high"
+    assert trick[0]["confidence"] == "high"
+    assert data["verdict"] == "suspicious"
+    assert data["score"] == 30
+    assert data["risk_level"] == "medium"
+
+
+def test_keyword_only_login_is_unknown_not_suspicious(client_safe):
+    """A lone keyword match is weak evidence: unknown, never suspicious."""
+    resp = client_safe.post("/api/analyze", json={"url": LOGIN_KEYWORD_URL})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [f["rule_id"] for f in data["findings"]] == ["suspicious_keywords"]
+    assert data["verdict"] == "unknown"
+    assert data["risk_level"] == "low"
+    assert data["score"] == 15
+
+
+def test_keyword_only_lure_is_unknown_with_score_15(client_safe):
+    resp = client_safe.post("/api/analyze", json={"url": KEYWORD_LURE_URL})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["verdict"] == "unknown"
+    assert data["score"] == 15
+
+
+def test_keyword_plus_independent_signal_still_suspicious(client_safe):
+    """Keyword wording corroborated by another signal stays suspicious."""
+    # plain http + keyword wording + open-redirect parameter.
+    url = "http://login.example.com/verify?redirect=http://evil.test/"
+    resp = client_safe.post("/api/analyze", json={"url": url})
+    assert resp.status_code == 200
+    data = resp.json()
+    rule_ids = {f["rule_id"] for f in data["findings"]}
+    assert "suspicious_keywords" in rule_ids
+    assert any(r in rule_ids for r in ("plain_http_scheme", "redirect_parameter"))
+    assert data["verdict"] == "suspicious"
 
 
 def test_engine_failure_yields_unknown_not_verified_safe(client_safe, monkeypatch):
