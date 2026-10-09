@@ -1,3 +1,6 @@
+import re
+from pathlib import Path
+
 import httpx
 import pytest
 
@@ -135,3 +138,96 @@ async def test_request_body_shape():
     assert "threatInfo" in body
     assert "threatEntries" in body
     assert "MALWARE" in body
+
+
+# --- Robustness: check() must NEVER raise, whatever goes wrong --------------
+
+
+async def test_unexpected_exception_is_provider_error():
+    """A non-httpx bug inside the provider degrades to 'provider_error'."""
+    def handler(request):
+        raise RuntimeError("boom")
+
+    result = await provider_with(handler).check("https://example.com")
+    assert result.status == ReputationStatus.UNAVAILABLE
+    assert result.error_reason == "provider_error"
+
+
+async def test_exception_text_never_leaks_api_key():
+    """httpx exceptions embed the request URL (which carries ?key=...);
+    the result must contain only a fixed, machine-readable reason."""
+    secret = "super-secret-key"
+
+    def handler(request):
+        raise httpx.ConnectError(
+            f"failed to connect: {request.url}"  # URL contains ?key=secret
+        )
+
+    result = await provider_with(handler, api_key=secret).check("https://example.com")
+    assert result.status == ReputationStatus.UNAVAILABLE
+    assert result.error_reason == "connection_error"
+    assert secret not in repr(result)
+    assert "key=" not in repr(result)
+
+
+@pytest.mark.parametrize("body", [[], "ok", 42, None])
+async def test_non_dict_response_is_invalid_response(body):
+    """A malformed success body is NOT evidence of safety."""
+    def handler(request):
+        return httpx.Response(200, json=body)
+
+    result = await provider_with(handler).check("https://example.com")
+    assert result.status == ReputationStatus.UNAVAILABLE
+    assert result.error_reason == "invalid_response"
+
+
+# --- API key handling: environment-only, never hardcoded --------------------
+
+
+def test_settings_read_key_from_environment(monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv("GOOGLE_SAFE_BROWSING_API_KEY", "env-only-key-123")
+    get_settings.cache_clear()
+    try:
+        assert get_settings().google_safe_browsing_api_key == "env-only-key-123"
+    finally:
+        get_settings.cache_clear()  # never leak the fixture value
+
+
+def test_settings_missing_key_is_none(monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.delenv("GOOGLE_SAFE_BROWSING_API_KEY", raising=False)
+    get_settings.cache_clear()
+    try:
+        assert get_settings().google_safe_browsing_api_key is None
+    finally:
+        get_settings.cache_clear()
+
+
+def test_no_hardcoded_api_key_in_source():
+    """Static guard: no Google-API-key-looking literal anywhere in app/."""
+    app_dir = Path(__file__).resolve().parents[1] / "app"
+    sources = sorted(app_dir.rglob("*.py"))
+    assert sources, "expected backend source files"
+    key_literal = re.compile(r"AIza[0-9A-Za-z_\-]{20,}")
+    assigned = re.compile(
+        r"GOOGLE_SAFE_BROWSING_API_KEY[\"']?\s*=\s*[\"'][^\"']+"
+    )
+    for path in sources:
+        text = path.read_text(encoding="utf-8")
+        assert not key_literal.search(text), f"hardcoded key in {path}"
+        assert not assigned.search(text), f"hardcoded value in {path}"
+
+
+def test_env_files_are_gitignored_not_tracked():
+    """Secrets live in environment files that git must ignore."""
+    backend_dir = Path(__file__).resolve().parents[1]
+    root_dir = backend_dir.parent
+    assert ".env" in (backend_dir / ".gitignore").read_text(encoding="utf-8")
+    assert ".env" in (root_dir / ".gitignore").read_text(encoding="utf-8")
+    # The template ships with an EMPTY key on purpose.
+    template = (backend_dir / ".env.example").read_text(encoding="utf-8")
+    assert "GOOGLE_SAFE_BROWSING_API_KEY=" in template
+    assert "GOOGLE_SAFE_BROWSING_API_KEY=\"" not in template

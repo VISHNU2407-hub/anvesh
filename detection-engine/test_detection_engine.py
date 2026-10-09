@@ -20,6 +20,9 @@ from detection_engine import (
     MAX_RISK_SCORE,
     RISK_BANDS,
     SEVERITY_SCORES,
+    VERIFICATION_NEEDS,
+    VERIFICATION_STATUSES,
+    VERIFICATION_SUSPICIOUS,
     analyze_url,
     categorize_risk,
     score_findings,
@@ -37,6 +40,7 @@ REQUIRED_KEYS = {
     "fragment",
     "risk_score",
     "risk_category",
+    "verification_status",
     "findings",
     "findings_count",
     "disclaimer",
@@ -66,6 +70,7 @@ class StructureAssertions(unittest.TestCase):
 
         self.assertIn(result["risk_category"],
                       ORDERED_CATEGORIES + [INDETERMINATE_CATEGORY])
+        self.assertIn(result["verification_status"], VERIFICATION_STATUSES)
 
         if result["is_valid"]:
             self.assertIsInstance(result["risk_score"], int)
@@ -398,6 +403,252 @@ class OutputContractTests(StructureAssertions):
         self.assertEqual(result["findings"], [])
         self.assertNotEqual(result["risk_category"], "safe")
         self.assertIn("does not mean the URL is safe", result["disclaimer"])
+
+
+class LookalikeDomainTests(StructureAssertions):
+    """Goal 1: brand impersonation / typosquat detection."""
+
+    def test_leet_speak_lookalike_fires(self):
+        result = self.assert_never_raises("https://paypa1.com/login")
+        self.assertIn("lookalike_domain", rule_ids(result))
+        finding = next(f for f in result["findings"]
+                       if f["rule_id"] == "lookalike_domain")
+        self.assertEqual(finding["severity"], "high")
+        self.assertIn("paypal", finding["evidence"])
+
+    def test_affixed_typo_lookalike_fires(self):
+        for url in (
+            "https://microsft-support.example/login",
+            "https://g00gle-login.example/",
+            "https://secure-paypal.example/",
+            "https://login.amazon-update.example/",
+        ):
+            with self.subTest(url=url):
+                self.assertIn("lookalike_domain",
+                              rule_ids(self.assert_never_raises(url)))
+
+    def test_bare_brand_on_foreign_domain_fires(self):
+        result = self.assert_never_raises("https://paypal.xyz/")
+        self.assertIn("lookalike_domain", rule_ids(result))
+
+    def test_single_edit_typo_fires(self):
+        for url in ("https://paypai.example/",
+                    "https://netflik-movies.example/"):
+            with self.subTest(url=url):
+                self.assertIn("lookalike_domain",
+                              rule_ids(self.assert_never_raises(url)))
+
+    def test_brand_in_subdomain_of_foreign_domain_fires(self):
+        result = self.assert_never_raises(
+            "https://accounts.paypal.evil.example/")
+        self.assertIn("lookalike_domain", rule_ids(result))
+
+    def test_official_domains_are_exempt(self):
+        for url in (
+            "https://paypal.com/",
+            "https://accounts.google.com/",
+            "https://www.microsoft.com/",
+            "https://login.live.com/",
+            "https://www.apple.com/uk/",
+        ):
+            with self.subTest(url=url):
+                self.assertNotIn("lookalike_domain",
+                                 rule_ids(self.assert_never_raises(url)))
+
+    def test_ordinary_words_are_not_false_positives(self):
+        # pineapple / applegate / upstream / stream / apply / credit are all
+        # near brand strings yet must NOT be flagged.
+        for url in (
+            "https://pineapple.example/",
+            "https://applegate.example/",
+            "https://upstream.example/",
+            "https://stream.example/",
+            "https://apply.example/",
+            "https://credit.example/",
+            "https://my-company.example/",
+        ):
+            with self.subTest(url=url):
+                self.assertNotIn("lookalike_domain",
+                                 rule_ids(self.assert_never_raises(url)))
+
+    def test_normal_sites_have_no_lookalike_findings(self):
+        for url in (
+            "https://example.com/",
+            "https://github.com/",
+            "https://en.wikipedia.org/",
+            "https://docs.python.org/",
+            "https://stackoverflow.com/questions",
+        ):
+            with self.subTest(url=url):
+                self.assertNotIn("lookalike_domain",
+                                 rule_ids(self.assert_never_raises(url)))
+
+
+class UrlObfuscationTests(StructureAssertions):
+    """Goal 1: URL obfuscation patterns (still pure string analysis)."""
+
+    def test_decimal_ip_host(self):
+        result = self.assert_never_raises("http://2130706433/login")
+        self.assertIn("encoded_ip_host", rule_ids(result))
+
+    def test_hex_ip_host(self):
+        result = self.assert_never_raises("http://0x7f000001/")
+        self.assertIn("encoded_ip_host", rule_ids(result))
+
+    def test_plain_dotted_ip_not_double_reported(self):
+        result = self.assert_never_raises("http://192.168.10.5/login")
+        self.assertNotIn("encoded_ip_host", rule_ids(result))
+        self.assertIn("ip_address_host", rule_ids(result))
+
+    def test_percent_encoded_hostname(self):
+        result = self.assert_never_raises("https://ex%61mple.com/")
+        self.assertIn("encoded_hostname", rule_ids(result))
+
+    def test_double_percent_encoding_fires(self):
+        url = ("https://example.com/?a=%252F%252Fevil.test"
+               "&b=%253A%252F%252Fx")
+        self.assertIn("double_encoding",
+                      rule_ids(self.assert_never_raises(url)))
+
+    def test_single_percent_encoding_is_not_double_encoding(self):
+        url = "https://example.com/search?q=hello%20world"
+        ids = rule_ids(self.assert_never_raises(url))
+        self.assertNotIn("double_encoding", ids)
+        self.assertNotIn("encoded_hostname", ids)
+        self.assertNotIn("excessive_url_encoding", ids)
+
+    def test_backslash_in_path(self):
+        url = "https://example.com/a\\b"
+        self.assertIn("backslash_obfuscation",
+                      rule_ids(self.assert_never_raises(url)))
+
+    def test_clean_urls_have_no_obfuscation_findings(self):
+        for url in (
+            "https://example.com/",
+            "https://github.com/org/repo",
+            "https://en.wikipedia.org/wiki/Phishing",
+            "https://docs.python.org/3/library/urllib.parse.html",
+        ):
+            with self.subTest(url=url):
+                ids = rule_ids(self.assert_never_raises(url))
+                for rule in ("encoded_ip_host", "encoded_hostname",
+                             "double_encoding", "backslash_obfuscation",
+                             "encoded_dot_segments"):
+                    self.assertNotIn(rule, ids)
+
+
+class RedirectTargetTests(StructureAssertions):
+    """Goal 1: redirect-related risks, analysed without following anything."""
+
+    def test_external_redirect_target_flagged(self):
+        url = ("https://example.com/out"
+               "?redirect=https%3A%2F%2Fevil.test/phish")
+        result = self.assert_never_raises(url)
+        ids = rule_ids(result)
+        self.assertIn("redirect_parameter", ids)
+        self.assertIn("redirect_to_external_host", ids)
+        finding = next(f for f in result["findings"]
+                       if f["rule_id"] == "redirect_to_external_host")
+        self.assertIn("evil.test", finding["evidence"])
+
+    def test_same_host_redirect_not_flagged_as_external(self):
+        url = "https://example.com/next?url=https%3A%2F%2Fexample.com/home"
+        ids = rule_ids(self.assert_never_raises(url))
+        self.assertIn("redirect_parameter", ids)
+        self.assertNotIn("redirect_to_external_host", ids)
+
+    def test_relative_redirect_not_flagged_as_external(self):
+        url = "https://example.com/next?url=%2Fdashboard"
+        ids = rule_ids(self.assert_never_raises(url))
+        self.assertNotIn("redirect_to_external_host", ids)
+
+    def test_protocol_relative_redirect_flagged(self):
+        url = "https://example.com/out?goto=%2F%2Fevil.test/x"
+        self.assertIn("redirect_to_external_host",
+                      rule_ids(self.assert_never_raises(url)))
+
+    def test_dangerous_scheme_redirect(self):
+        url = "https://example.com/out?next=javascript:alert(1)"
+        result = self.assert_never_raises(url)
+        self.assertIn("redirect_to_dangerous_scheme", rule_ids(result))
+        finding = next(f for f in result["findings"]
+                       if f["rule_id"] == "redirect_to_dangerous_scheme")
+        self.assertEqual(finding["severity"], "critical")
+
+    def test_shortener_redirect_target(self):
+        url = "https://example.com/out?url=https://bit.ly/abc123"
+        ids = rule_ids(self.assert_never_raises(url))
+        self.assertIn("redirect_to_shortener", ids)
+        self.assertIn("redirect_to_external_host", ids)
+
+    def test_redirect_target_is_parsed_as_text_never_visited(self):
+        # The module makes no network requests at all (also covered by
+        # EdgeCaseTests.test_module_never_makes_network_requests).
+        source = inspect.getsource(detection_engine)
+        self.assertNotIn("urlopen", source)
+        self.assertNotIn("http.client", source)
+        self.assertNotIn("urllib.request", source)
+
+
+class VerificationStatusTests(StructureAssertions):
+    """Goal 3: never call a URL safe just because nothing matched."""
+
+    def test_status_vocabulary_has_no_safe_value(self):
+        self.assertEqual(set(VERIFICATION_STATUSES),
+                         {VERIFICATION_SUSPICIOUS, VERIFICATION_NEEDS})
+        self.assertNotIn("safe", VERIFICATION_STATUSES)
+        self.assertEqual(VERIFICATION_NEEDS, "needs_verification")
+
+    def test_benign_url_is_needs_verification_not_safe(self):
+        result = self.assert_never_raises("https://example.com")
+        self.assertEqual(result["findings"], [])
+        self.assertEqual(result["verification_status"], VERIFICATION_NEEDS)
+
+    def test_normal_urls_never_claimed_safe(self):
+        for url in (
+            "https://example.com/",
+            "https://github.com/",
+            "https://en.wikipedia.org/",
+            "https://docs.python.org/",
+            "https://my-company.example/",
+        ):
+            with self.subTest(url=url):
+                result = self.assert_never_raises(url)
+                self.assertEqual(result["verification_status"],
+                                 VERIFICATION_NEEDS, url)
+
+    def test_flagged_url_is_suspicious(self):
+        for url in (
+            "http://192.168.10.5/login",
+            "https://paypa1.com/login",
+            "https://example.com/out?next=javascript:alert(1)",
+        ):
+            with self.subTest(url=url):
+                result = self.assert_never_raises(url)
+                self.assertTrue(result["findings"])
+                self.assertEqual(result["verification_status"],
+                                 VERIFICATION_SUSPICIOUS)
+
+    def test_malformed_input_needs_verification(self):
+        result = self.assert_never_raises("not a url")
+        self.assertFalse(result["is_valid"])
+        self.assertEqual(result["verification_status"], VERIFICATION_NEEDS)
+
+    def test_dangerous_scheme_is_suspicious(self):
+        result = self.assert_never_raises("javascript:alert(1)")
+        self.assertEqual(result["verification_status"], VERIFICATION_SUSPICIOUS)
+
+    def test_status_present_on_every_result(self):
+        for value in (None, "", 42, ["x"], "https://example.com",
+                      "http://2130706433/", "garbage"):
+            with self.subTest(value=value):
+                result = self.assert_never_raises(value)
+                self.assertIn(result["verification_status"],
+                              VERIFICATION_STATUSES)
+
+    def test_repeated_calls_are_deterministic(self):
+        url = "https://paypa1.com/login?redirect=https://evil.test/"
+        self.assertEqual(analyze_url(url), analyze_url(url))
 
 
 if __name__ == "__main__":

@@ -10,9 +10,14 @@ Verified against current Google docs (developers.google.com/safe-browsing):
 
 Security notes:
 - The API key is only used server-side and is never returned to the client.
+- The key is read from an environment variable by the caller; it is never
+  hardcoded in this module (or anywhere in the repo).
 - We send the URL string to Google for lookup; we NEVER fetch/open the URL here.
-- All failures (missing key, timeout, quota, auth, API errors) map to an
-  UNAVAILABLE result with a machine-readable reason instead of raising.
+- All failures (missing key, timeout, quota, auth, API errors, unexpected
+  provider bugs) map to an UNAVAILABLE result with a machine-readable reason
+  instead of raising. check() never raises by contract.
+- Raw exception text is deliberately never propagated: httpx exceptions can
+  embed the full request URL, which contains ?key=API_KEY.
 """
 
 from __future__ import annotations
@@ -87,9 +92,19 @@ class GoogleSafeBrowsingProvider(ThreatIntelProvider):
         return matches
 
     async def check(self, url: str) -> ReputationResult:
+        """Check one URL. Contract: NEVER raises; every failure becomes an
+        UNAVAILABLE result with a stable, machine-readable reason."""
         if not self._api_key:
             return ReputationResult.unavailable(self.name, "missing_api_key")
+        try:
+            return await self._check(url)
+        except Exception:
+            # Defensive net for unexpected provider bugs. Exception text is
+            # intentionally dropped: it may embed the request URL including
+            # the API key.
+            return ReputationResult.unavailable(self.name, "provider_error")
 
+    async def _check(self, url: str) -> ReputationResult:
         request_url = f"{GSB_ENDPOINT}?key={self._api_key}"
         try:
             async with httpx.AsyncClient(
@@ -105,6 +120,10 @@ class GoogleSafeBrowsingProvider(ThreatIntelProvider):
             try:
                 data = resp.json()
             except ValueError:
+                return ReputationResult.unavailable(self.name, "invalid_response")
+            if not isinstance(data, dict):
+                # Malformed body (e.g. a JSON list/string): an unparseable
+                # answer is NOT evidence of safety.
                 return ReputationResult.unavailable(self.name, "invalid_response")
             matches = self._parse_matches(data or {})
             if not matches:
