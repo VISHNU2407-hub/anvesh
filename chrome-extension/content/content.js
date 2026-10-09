@@ -1,5 +1,5 @@
 /**
- * LinkShield AI content script (classic script — Manifest V3 content scripts
+ * URL Lens content script (classic script — Manifest V3 content scripts
  * are not ES modules; lib/links.js is loaded before this file and exposes
  * globalThis.LinkShieldLinks).
  *
@@ -114,13 +114,13 @@
     event.stopImmediatePropagation();
 
     const intent = intentFrom(event, anchor);
-    showChip("LinkShield AI is checking this link…", false);
+    showChip("URL Lens: checking link…", false);
 
     let settled = false;
     const fail = (why) => {
       if (settled) return;
       settled = true;
-      showChip(`LinkShield: ${why} — link opened without verification.`, true);
+      showChip(`URL Lens: ${why} — opened without check.`, true);
       setTimeout(hideChip, 5000);
       // Documented fail-open policy: an extension-side error must never
       // strand the user's click. The background only returns ok:false on

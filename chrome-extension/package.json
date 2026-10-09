@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "LinkShield AI Chrome extension (Manifest V3) — protects users from suspicious/malicious URLs via the LinkShield AI FastAPI backend.",
+  "description": "URL Lens Chrome extension (Manifest V3) — checks links via your LinkShield AI FastAPI backend.",
   "scripts": {
     "test": "node --test tests/*.test.js",
     "test:e2e": "node scripts/e2e-browser.mjs",

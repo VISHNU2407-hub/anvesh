@@ -1,5 +1,5 @@
 /**
- * Background orchestration for LinkShield AI.
+ * Background orchestration for URL Lens.
  *
  * Pure, dependency-injected core so the Node test suite can drive the entire
  * flow (clicks, redirects, approvals, warnings, failures) with fakes.

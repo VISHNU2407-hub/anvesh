@@ -43,7 +43,7 @@ async function main() {
   const model = buildWarningViewModel(record);
   renderWarning(document, model);
 
-  document.title = `${model.tier === "block" ? "Blocked" : "Warning"} — LinkShield AI`;
+  document.title = `${model.tier === "block" ? "Blocked" : "Warning"} — URL Lens`;
 
   const actions = document.getElementById("actions");
   if (actions) {
@@ -71,7 +71,7 @@ async function main() {
             const note = document.getElementById("continue-error");
             if (note) {
               note.hidden = false;
-              note.textContent = "Continuing was refused by LinkShield AI.";
+              note.textContent = "Continuing was refused by URL Lens.";
             }
             return;
           }
@@ -94,9 +94,10 @@ async function main() {
 
 main().catch((err) => {
   const headline = document.getElementById("headline");
-  if (headline) headline.textContent = "LinkShield AI warning";
+  if (headline) headline.textContent = "URL Lens";
   const subline = document.getElementById("subline");
   if (subline) {
-    subline.textContent = `Could not load warning details (${String(err && err.message ? err.message : err)}). Nothing was opened.`;
+    subline.textContent = "Could not load warning details. Nothing was opened.";
   }
+  console.error(err);
 });

@@ -1,5 +1,5 @@
 /**
- * Real-browser end-to-end test for the LinkShield AI extension.
+ * Real-browser end-to-end test for the URL Lens extension.
  *
  * Loads the unpacked extension into installed Chrome the SUPPORTED way for
  * Chrome 137+ (where --load-extension was removed): launch Chrome with
@@ -185,7 +185,7 @@ const fakeBackend = createServer((req, res) => {
 });
 
 // Test page with one link per scenario (each cross-origin to the page).
-const pageHtml = `<!DOCTYPE html><html><head><title>LinkShield E2E</title></head><body>
+const pageHtml = `<!DOCTYPE html><html><head><title>URL Lens E2E</title></head><body>
   <h1>E2E test page</h1>
   <nav>
     <a id="low" href="${destUrl("low")}">low</a>

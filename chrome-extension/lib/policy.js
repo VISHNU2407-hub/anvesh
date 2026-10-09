@@ -173,51 +173,50 @@ export function decide(analysis) {
 
   // --- Verification state: never claim safety we don't have. ---------------
   const verified = verdict === "verified_safe";
-  const unverified = !verified;
-  if (unverified) {
-    const bits = [];
-    if (verdict === "unknown") bits.push("verdict is unknown");
-    if (reputation_status === "unavailable") bits.push("reputation check unavailable");
-    if (reputation_status === "no_known_threat") {
-      bits.push("no known threat found (not proof of safety)");
+  const unverified = !verified;    if (unverified) {
+      const bits = [];
+      if (verdict === "unknown") bits.push("verdict is unknown");
+      if (reputation_status === "unavailable") bits.push("reputation check unavailable");
+      if (reputation_status === "no_known_threat") {
+        bits.push("no known threat found (not proof of safety)");
+      }
+      reasons.push(
+        `Not verified${bits.length ? `: ${bits.join(", ")}` : ""}. Verify before trusting this link.`
+      );
     }
-    reasons.push(
-      `Not verified${bits.length ? `: ${bits.join(", ")}` : ""} — verify before trusting this link.`
-    );
-  }
 
   // --- Block tier (no bypass). Strongest evidence first. -------------------
   if (verdict === "confirmed_malicious") {
-    reasons.push("Confirmed malicious: an external threat-intelligence source matched this URL.");
+    reasons.push("Confirmed malicious — threat intelligence matched this URL.");
     return { tier: TIER.BLOCK, reasons, unverified, verified };
   }
   if (reputation_status === "threat_detected") {
-    reasons.push("Threat intelligence reports a known-threat match for this URL.");
+    reasons.push("Threat intelligence match.");
     return { tier: TIER.BLOCK, reasons, unverified, verified };
   }
   if (risk_level === "high") {
-    reasons.push("Backend risk level is HIGH.");
+    reasons.push("Risk level is HIGH.");
     return { tier: TIER.BLOCK, reasons, unverified, verified };
   }
   if (score > 65) {
-    reasons.push(`Risk score ${score} is above the block threshold (65).`);
+    reasons.push(`Score ${score} — above block threshold (65).`);
     return { tier: TIER.BLOCK, reasons, unverified, verified };
   }
 
   // --- Warn tier (Continue available only here). ---------------------------
   if (score >= MEDIUM_SCORE_MIN) {
-    reasons.push(`Risk score ${score} is in the warning range (30–65).`);
+    reasons.push(`Score ${score} — warning range (30–65).`);
     if (verdict === "unknown") {
-      reasons.push("Verdict is unknown — this URL was not verified as safe.");
+      reasons.push("Verdict: unknown (not verified).");
     }
     return { tier: TIER.WARN, reasons, unverified, verified };
   }
   if (verdict === "suspicious") {
-    reasons.push("Detection engines flagged this URL as suspicious (verdict escalation).");
+    reasons.push("Detection engines flagged this URL (suspicious).");
     return { tier: TIER.WARN, reasons, unverified, verified };
   }
   if (risk_level === "medium") {
-    reasons.push("Backend risk level is MEDIUM.");
+    reasons.push("Risk level is MEDIUM.");
     return { tier: TIER.WARN, reasons, unverified, verified };
   }
 
@@ -230,14 +229,14 @@ export function decide(analysis) {
 
 /** Human-facing explanation for each scan failure kind. */
 export const ERROR_LABELS = Object.freeze({
-  timeout: "The scan timed out before the backend responded.",
-  network: "The LinkShield AI backend could not be reached.",
-  bad_request: "The backend rejected this URL as invalid (HTTP 400).",
+  timeout: "The backend did not respond in time.",
+  network: "The backend could not be reached.",
+  bad_request: "The backend rejected this URL (HTTP 400).",
   server_error: "The backend returned a server error.",
-  invalid_json: "The backend returned a response that is not valid JSON.",
-  invalid_response: "The backend returned a response with an unexpected shape.",
+  invalid_json: "The backend response is not JSON.",
+  invalid_response: "The backend response has an unexpected shape.",
   aborted: "The scan was aborted.",
-  invalid_url: "The destination URL is not a valid http(s) URL.",
+  invalid_url: "Not a valid http(s) URL.",
 });
 
 /**

@@ -1,5 +1,5 @@
 /**
- * LinkShield AI — Manifest V3 service worker (ES module).
+ * URL Lens — Manifest V3 service worker (ES module).
  *
  * All logic lives in lib/controller.js (dependency-injected, unit-tested).
  * This file only wires real Chrome APIs + the real fetch.
@@ -55,7 +55,7 @@ const controller = new LinkShieldController({
       }
     },
   },
-  log: (...args) => console.log("[LinkShield]", ...args),
+  log: (...args) => console.log("[URLLens]", ...args),
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -76,7 +76,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse(response);
     })
     .catch((err) => {
-      console.error("[LinkShield] message handler error", err);
+      console.error("[URLLens] message handler error", err);
       sendResponse({ ok: false, error: String((err && err.message) || err) });
     });
   return true; // keep the message channel open for the async response
@@ -93,5 +93,5 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // Surface the "requires a backend URL with host access" state early so the
 // options page can prompt for optional permission when needed.
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("[LinkShield] installed/updated");
+  console.log("[URLLens] installed/updated");
 });

@@ -207,7 +207,7 @@ test("unverified banner is shown exactly when the case is unverified", () => {
   const doc = makeDoc();
   renderWarning(doc, buildWarningViewModel(caseFixture({ unverified: true })));
   assert.equal(doc.byId["unverified-banner"].hidden, false);
-  assert.match(doc.byId["unverified-banner"].textContent, /NOT verified as safe/);
+  assert.match(doc.byId["unverified-banner"].textContent, /not verified as safe/i);
 
   const doc2 = makeDoc();
   renderWarning(doc2, buildWarningViewModel(caseFixture({ unverified: false })));

@@ -58,11 +58,11 @@ async function save(event) {
 
   const pattern = originPattern(backendUrl);
   if (!pattern) {
-    setStatus("Backend URL must be a valid http(s) URL.", true);
+    setStatus("Enter a valid http(s) URL.", true);
     return;
   }
   if (!Number.isFinite(timeoutMs) || timeoutMs < 1000 || timeoutMs > 30000) {
-    setStatus("Timeout must be between 1000 and 30000 ms.", true);
+    setStatus("Timeout must be 1000–30000 ms.", true);
     return;
   }
 
@@ -72,13 +72,10 @@ async function save(event) {
       const granted = await chrome.permissions.request({ origins: [pattern] });
       permissionKnown.granted = granted;
       if (!granted) {
-        setStatus(
-          "Saved, but host access was NOT granted — scans to this backend will fail until you allow access.",
-          true
-        );
+        setStatus("Saved, but host access was not granted — scans will fail.", true);
       }
     } catch (err) {
-      setStatus(`Permission request failed: ${String(err && err.message)}`, true);
+      setStatus(`Permission failed: ${String(err && err.message)}`, true);
     }
   }
 
@@ -95,7 +92,7 @@ async function save(event) {
       setTimeout(() => setStatus("", false), 2500);
     }
   } else {
-    setStatus("Save failed — could not reach the background worker.", true);
+    setStatus("Save failed — no background worker.", true);
   }
 }
 

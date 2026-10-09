@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "LinkShield AI",
+  "name": "URL Lens",
   "version": "0.1.0",
-  "description": "Protects you from suspicious and malicious links by checking them against your LinkShield AI backend before you visit them.",
+  "description": "Checks links before you open them and warns you about suspicious or malicious URLs.",
   "minimum_chrome_version": "116",
   "permissions": ["storage", "webNavigation"],
   "host_permissions": ["http://127.0.0.1:8000/*", "http://localhost:8000/*"],
@@ -21,7 +21,7 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "LinkShield AI — scan this page",
+    "default_title": "URL Lens — scan this page",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",

@@ -40,8 +40,8 @@ export function buildWarningViewModel(c) {
     return {
       missing: true,
       tier: TIER_WARN,
-      headline: "LinkShield AI",
-      subline: "This warning has expired. Nothing was opened.",
+      headline: "URL Lens",
+      subline: "This warning expired. Nothing was opened.",
       hostname: "",
       url: "",
       score: null,
@@ -83,7 +83,7 @@ export function buildWarningViewModel(c) {
     }));
 
   const unverifiedBanner = c.unverified
-    ? "This URL was NOT verified as safe. “No known threats found” is not proof of safety — verify before trusting it."
+    ? "Not verified as safe — no known threats found isn't proof of safety."
     : null;
 
   const buttons =
@@ -97,11 +97,11 @@ export function buildWarningViewModel(c) {
   return {
     missing: false,
     tier,
-    headline: tier === TIER_BLOCK ? "Dangerous link blocked" : "Suspicious link warning",
+    headline: tier === TIER_BLOCK ? "Dangerous link" : "Suspicious link",
     subline:
       tier === TIER_BLOCK
-        ? "LinkShield AI found strong evidence that this destination is dangerous. Navigation was stopped."
-        : "LinkShield AI flagged this destination as potentially unsafe.",
+        ? "Navigation was stopped — this destination looks dangerous."
+        : "This destination may be unsafe.",
     hostname,
     url: displayUrl(c.url),
     score,
@@ -111,11 +111,11 @@ export function buildWarningViewModel(c) {
       c.verdict && VERDICT_LABELS[c.verdict] ? VERDICT_LABELS[c.verdict] : "",
     reputationLabel:
       c.reputationStatus === "threat_detected"
-        ? "Known threat match"
+        ? "Threat confirmed"
         : c.reputationStatus === "no_known_threat"
-          ? "No known threat (unverified)"
+          ? "No known threat — unverified"
           : c.reputationStatus === "unavailable"
-            ? "Reputation check unavailable"
+            ? "Reputation unavailable"
             : "",
     unverifiedBanner,
     reasons,

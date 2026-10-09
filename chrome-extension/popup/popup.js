@@ -18,9 +18,9 @@ const $ = (id) => document.getElementById(id);
 const ERROR_TITLES = {
   timeout: "Scan timed out",
   network: "Backend unavailable",
-  invalid_response: "Invalid backend response",
-  invalid_json: "Invalid backend response",
-  bad_request: "Backend rejected the URL",
+  invalid_response: "Invalid response",
+  invalid_json: "Invalid response",
+  bad_request: "URL rejected by backend",
   server_error: "Backend error",
   invalid_url: "Invalid URL",
   aborted: "Scan aborted",
@@ -74,25 +74,21 @@ async function resolvePageUrl() {
 
   // 3) Extension/browser pages cannot be scanned.
   pageUrl = null;
-  $("page-url").textContent =
-    "This page cannot be scanned (browser page or extension page).";
+  $("page-url").textContent = "This page can't be scanned.";
 }
 
 function renderError(record) {
   const title = ERROR_TITLES[record.error] || "Scan failed";
   $("error-title").textContent = title;
-  $("error-detail").textContent =
-    record.errorLabel ||
-    "The scan did not complete. This URL was NOT verified as safe.";
-  const settingsHint = "Check the backend URL in Settings (⚙).";
+  $("error-detail").textContent = record.errorLabel || "Scan failed. URL not verified.";
   $("error-hint").textContent =
     record.error === "network"
-      ? `Is your LinkShield AI backend running? ${settingsHint}`
+      ? "Is the backend running? Check Settings (⚙)."
       : record.error === "timeout"
-        ? `The backend did not answer in time. ${settingsHint}`
+        ? "Too slow — raise the timeout in Settings (⚙)."
         : record.error === "invalid_response" || record.error === "invalid_json"
-          ? "The backend answered with an unexpected payload — results cannot be trusted."
-          : settingsHint;
+          ? "The backend sent an unexpected response."
+          : "Check Settings (⚙).";
   show("state-error");
 }
 
@@ -126,8 +122,7 @@ function renderResult(record) {
   const banner = $("unverified-banner");
   if (record.unverified) {
     banner.hidden = false;
-    banner.textContent =
-      "Not verified as safe. “No known threats found” and failed checks are NOT proof of safety.";
+    banner.textContent = "Not verified as safe — no known threats found isn't proof of safety.";
   } else {
     banner.hidden = true;
   }
