@@ -143,6 +143,13 @@ a startup hook). Engines run in a worker thread and a crashing engine is
 isolated so it can never take down the request. A no-op `PlaceholderDetectionEngine`
 is registered by default and can be replaced.
 
+**Connected engine:** `app/detection/linkshield_engine.py` adapts the team's
+Part 2 rule engine (`detection-engine/detection_engine.py`, loaded from the
+repo checkout) to this interface and is registered in `app/main.py` at
+startup as `linkshield_rule_engine`. It analyzes `context.normalized_url`
+purely as a string — it never fetches or opens the submitted URL. See
+`tests/test_engine_integration.py` for endpoint-level coverage.
+
 ## Running tests
 
 ```bash

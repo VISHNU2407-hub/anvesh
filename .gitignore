@@ -1,0 +1,13 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+
+# Virtual environments / tooling
+.venv/
+venv/
+.pytest_cache/
+
+# Secrets (never commit)
+.env
+.env.*
+!.env.example
