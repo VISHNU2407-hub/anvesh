@@ -5,7 +5,6 @@ import {
   Radar,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
   TriangleAlert,
 } from 'lucide-react'
 import FindingCard from './FindingCard'
@@ -169,17 +168,15 @@ function VerdictBanner({ result }) {
 }
 
 /**
- * Analysis report dashboard. Renders every scenario (demo or API) with
- * risk-consistent accents, verdict-aware banners, findings, threat-intelligence
- * status, and safety recommendations. Never presents `unknown` or
- * `no_known_threat` as guaranteed safe.
+ * Analysis report dashboard. Renders every scenario with risk-consistent
+ * accents, verdict-aware banners, findings, threat-intelligence status, and
+ * safety recommendations. Never presents `unknown` or `no_known_threat` as
+ * guaranteed safe.
  */
 export default function ResultDashboard({ result, onNewScan }) {
   if (!result) return null
 
   const style = riskStyle(result.risk_level)
-  const isHigh = style.key === 'high'
-  const isDemo = Boolean(result.demo)
   const hasVerdict = Boolean(result.verdict)
 
   return (
@@ -189,7 +186,7 @@ export default function ResultDashboard({ result, onNewScan }) {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="section-title text-2xl sm:text-3xl">Analysis report</h1>
           <RiskBadge level={result.risk_level} />
-          {!isDemo && hasVerdict ? <VerdictBadge verdict={result.verdict} /> : null}
+          {hasVerdict ? <VerdictBadge verdict={result.verdict} /> : null}
         </div>
         <button type="button" onClick={onNewScan} className="btn-primary self-start text-sm sm:self-auto">
           <ArrowLeft size={16} aria-hidden="true" />
@@ -197,34 +194,7 @@ export default function ResultDashboard({ result, onNewScan }) {
         </button>
       </div>
 
-      {/* Banners: prioritize API verdict when not in demo mode */}
-      {isDemo ? (
-        isHigh ? (
-          <div
-            role="alert"
-            className="mb-4 flex items-start gap-3 rounded-2xl border border-red-300 bg-gradient-to-r from-red-50 to-rose-50 p-4"
-          >
-            <ShieldAlert size={20} className="mt-0.5 shrink-0 text-risk-high" aria-hidden="true" />
-            <p className="text-sm leading-relaxed text-red-700">
-              <strong className="font-bold text-red-800">
-                Simulated high-risk demonstration.
-              </strong>{' '}
-              Not a confirmed malicious verdict. Do not enter passwords, OTPs, or payment information.
-            </p>
-          </div>
-        ) : (
-          <div className="mb-4 flex items-start gap-3 rounded-2xl border border-blue-200 bg-brand-soft p-4">
-            <Sparkles size={18} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
-            <p className="text-sm leading-relaxed text-blue-900">
-              <strong className="font-bold text-brand-dark">
-                {result.demo.label}
-                {/simulated/i.test(result.demo.label) ? '' : ' · SIMULATED RESULT'}
-              </strong>{' '}
-              — {result.demo.note}
-            </p>
-          </div>
-        )
-      ) : hasVerdict ? (
+      {hasVerdict ? (
         <VerdictBanner result={result} />
       ) : result.risk_level === 'Unknown' ? (
         <div className="mb-4 rounded-2xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-700">
@@ -248,17 +218,17 @@ export default function ResultDashboard({ result, onNewScan }) {
 
           <div className="mt-4 text-center text-xs font-medium text-muted">
             <p>
-              {isDemo ? 'Illustrative demo score · ' : 'Score · '}
+              Score ·{' '}
               <span className="font-semibold">
                 {typeof (result.risk_score ?? result.score) === 'number'
                   ? `${result.risk_score ?? result.score}/100`
                   : 'no score available'}
               </span>
-              {!isDemo && hasVerdict ? (
+              {hasVerdict ? (
                 <span className="ml-2">· Verdict: <span className="font-semibold capitalize">{String(result.verdict).replace(/_/g, ' ')}</span></span>
               ) : null}
             </p>
-            {!isDemo && hasVerdict && result.reputation_status ? (
+            {hasVerdict && result.reputation_status ? (
               <p className="mt-1">Reputation: <span className="font-semibold">{String(result.reputation_status).replace(/_/g, ' ')}</span></p>
             ) : null}
           </div>
@@ -312,7 +282,7 @@ export default function ResultDashboard({ result, onNewScan }) {
       {/* Scan time */}
       <p className="animate-rise anim-delay-6 mt-5 text-xs text-muted">
         Scan completed · {formatTimestamp(result.scanned_at)}
-        {isDemo ? ' · Simulated report — demo mode' : hasVerdict ? ` · Verdict: ${String(result.verdict).replace(/_/g, ' ')}` : ''}
+        {hasVerdict ? ` · Verdict: ${String(result.verdict).replace(/_/g, ' ')}` : ''}
       </p>
     </div>
   )

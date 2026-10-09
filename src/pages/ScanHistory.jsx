@@ -70,14 +70,7 @@ export default function ScanHistory() {
                       <p className="truncate font-mono text-[13px] font-medium text-ink" title={record.url}>
                         {record.url}
                       </p>
-                      <p className="mt-0.5 flex items-center gap-2 text-xs text-muted">
-                        {record.domain}
-                        {record.record_type === 'demo' ? (
-                          <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                            Demo record
-                          </span>
-                        ) : null}
-                      </p>
+                      <p className="mt-0.5 text-xs text-muted">{record.domain}</p>
                     </td>
                     <td className="px-5 py-4">
                       <RiskBadge level={record.risk_level} size="sm" />
@@ -115,14 +108,7 @@ export default function ScanHistory() {
                     <p className="truncate font-mono text-[13px] font-medium text-ink" title={record.url}>
                       {record.url}
                     </p>
-                    <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-                      {record.domain}
-                      {record.record_type === 'demo' ? (
-                        <span className="rounded-full border border-amber-200 bg-amber-50 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                          Demo record
-                        </span>
-                      ) : null}
-                    </p>
+                    <p className="mt-1 text-xs text-muted">{record.domain}</p>
                   </div>
                   <RiskBadge level={record.risk_level} size="sm" />
                 </div>

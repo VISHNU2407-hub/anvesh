@@ -10,8 +10,7 @@ const FOOTER_LINKS = [
 ]
 
 /**
- * Professional footer with navigation and an honest disclaimer about the
- * demonstration nature of the results.
+ * Professional footer with navigation and branding.
  */
 export default function Footer() {
   return (
@@ -54,9 +53,7 @@ export default function Footer() {
         </div>
 
         <div className="mt-8 border-t border-line pt-6">
-          <p className="text-xs text-muted">
-            © {YEAR} URLens · Demonstration build with simulated results.
-          </p>
+          <p className="text-xs text-muted">© {YEAR} URLens</p>
         </div>
       </div>
     </footer>

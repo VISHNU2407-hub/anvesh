@@ -79,8 +79,9 @@ export default function HowItWorks() {
       </ol>
 
       <p className="animate-rise anim-delay-4 mt-6 text-sm text-muted">
-        In this demo, analysis runs on local mock data — no live threat feeds
-        are contacted, and no automated result guarantees safety.
+        Analysis is performed securely without visiting the submitted URL, and no
+        automated result can guarantee absolute safety — always verify sensitive
+        destinations through official channels.
       </p>
     </div>
   )

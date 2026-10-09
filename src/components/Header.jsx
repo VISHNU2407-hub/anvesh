@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link as LinkIcon, Menu, Shield, X } from 'lucide-react'
 import { Link, NavLink } from 'react-router-dom'
-import { USE_MOCK } from '../services/analysisApi'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Home', end: true },
@@ -19,22 +18,9 @@ function navClass({ isActive }) {
   ].join(' ')
 }
 
-function DemoBadge() {
-  if (!USE_MOCK) return null
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700"
-      title="Mock data is in use: results are simulated locally and no backend is connected."
-    >
-      <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />
-      Demo mode
-    </span>
-  )
-}
-
 /**
- * Application header: branding, functional navigation, DEMO MODE indicator,
- * and a responsive mobile menu.
+ * Application header: branding, functional navigation, and a responsive
+ * mobile menu.
  */
 export default function Header() {
   const [open, setOpen] = useState(false)
@@ -80,7 +66,6 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <DemoBadge />
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}

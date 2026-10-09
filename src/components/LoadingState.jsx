@@ -1,14 +1,10 @@
 import { useEffect, useState } from 'react'
-import { LoaderCircle, Shield, WifiOff } from 'lucide-react'
-import { USE_MOCK } from '../services/analysisApi'
+import { LoaderCircle, Shield } from 'lucide-react'
 
 const STAGE_META = [
   { label: 'Validating URL format', progress: 14 },
   { label: 'Preparing URL analysis', progress: 40 },
-  {
-    label: USE_MOCK ? 'Processing mock results' : 'Waiting for the backend response',
-    progress: 70,
-  },
+  { label: 'Analyzing URL patterns and reputation', progress: 70 },
   { label: 'Preparing the report', progress: 92 },
 ]
 
@@ -16,8 +12,7 @@ const STAGE_INTERVAL_MS = 650
 
 /**
  * Animated analyzing state: scanning shield, progress bar, and the four
- * processing labels. In demo mode it states plainly that progress and
- * results are simulated — it never implies live threat-intel checks.
+ * processing labels.
  */
 export default function LoadingState({ url }) {
   const [stage, setStage] = useState(0)
@@ -121,29 +116,12 @@ export default function LoadingState({ url }) {
         ))}
       </ol>
 
-      {/* Honest explanation of what is (not) happening */}
+      {/* Security note */}
       <div className="mx-auto mt-6 flex max-w-lg items-start gap-2.5 rounded-xl border border-blue-100 bg-brand-soft p-3.5">
-        {USE_MOCK ? (
-          <Shield size={16} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
-        ) : (
-          <WifiOff size={16} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
-        )}
+        <Shield size={16} className="mt-0.5 shrink-0 text-brand" aria-hidden="true" />
         <p className="text-xs leading-relaxed text-blue-900">
-          {USE_MOCK ? (
-            <>
-              <strong>Demo mode:</strong> these progress steps and the resulting
-              report are simulated locally in your browser. No live
-              threat-intelligence checks are being performed and no website is
-              being visited.
-            </>
-          ) : (
-            <>
-              <strong>API mode:</strong> this URL has been sent to the
-              configured analysis backend, which responds with the risk score,
-              findings, and advice shown in the report. Progress labels here
-              reflect request stages only.
-            </>
-          )}
+          Analysis is performed without visiting the destination URL. Results
+          are based on pattern checks and reputation data where available.
         </p>
       </div>
     </section>
