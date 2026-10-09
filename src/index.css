@@ -1,0 +1,377 @@
+@import "tailwindcss";
+
+/* ---------------------------------- */
+/* URLens design tokens                              */
+/* ---------------------------------- */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+
+  /* Core palette */
+  --color-canvas: #f6f8fc;
+  --color-brand: #2563eb;
+  --color-brand-dark: #1d4ed8;
+  --color-brand-soft: #eff6ff;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+  --color-line: #e2e8f0;
+
+  /* Risk palette */
+  --color-risk-low: #16a34a;
+  --color-risk-low-soft: #ecfdf5;
+  --color-risk-medium: #d97706;
+  --color-risk-medium-soft: #fffbeb;
+  --color-risk-high: #dc2626;
+  --color-risk-high-soft: #fef2f2;
+  --color-risk-unknown: #64748b;
+  --color-risk-unknown-soft: #f1f5f9;
+}
+
+/* ---------------------------------- */
+/* Base                               */
+/* ---------------------------------- */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
+/* ---------------------------------- */
+/* Reusable pieces                    */
+/* ---------------------------------- */
+@layer components {
+  .card {
+    background-color: #ffffff;
+    border: 1px solid var(--color-line);
+    border-radius: 1rem;
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.04),
+      0 8px 24px -16px rgba(15, 23, 42, 0.18);
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    background-color: var(--color-brand);
+    color: #ffffff;
+    font-weight: 600;
+    padding: 0.75rem 1.5rem;
+    transition:
+      background-color 0.18s ease,
+      transform 0.18s ease,
+      box-shadow 0.18s ease;
+    box-shadow: 0 10px 22px -14px rgba(37, 99, 235, 0.9);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--color-brand-dark);
+    transform: translateY(-1px);
+  }
+
+  .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    border: 1px solid var(--color-line);
+    background-color: #ffffff;
+    color: var(--color-ink);
+    font-weight: 600;
+    padding: 0.75rem 1.375rem;
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-brand-soft);
+    border-color: #bfdbfe;
+    color: var(--color-brand-dark);
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 9999px;
+    border: 1px solid var(--color-line);
+    background-color: #ffffff;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #334155;
+    transition:
+      background-color 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease;
+  }
+
+  .chip:hover {
+    background-color: var(--color-brand-soft);
+    border-color: #bfdbfe;
+    color: var(--color-brand-dark);
+  }
+
+  .section-title {
+    font-size: 1.875rem;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--color-ink);
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    border: 1px solid #dbeafe;
+    background-color: var(--color-brand-soft);
+    color: var(--color-brand-dark);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.375rem 0.75rem;
+  }
+}
+
+/* ---------------------------------- */
+/* Decorative gradients               */
+/* ---------------------------------- */
+.hero-glow {
+  position: relative;
+  isolation: isolate;
+}
+
+.hero-glow::before {
+  content: "";
+  position: absolute;
+  inset: -20% 0 auto 0;
+  height: 70%;
+  z-index: -1;
+  background:
+    radial-gradient(
+      55% 55% at 20% 20%,
+      rgba(37, 99, 235, 0.16) 0%,
+      rgba(37, 99, 235, 0) 70%
+    ),
+    radial-gradient(
+      50% 50% at 85% 10%,
+      rgba(59, 130, 246, 0.18) 0%,
+      rgba(59, 130, 246, 0) 70%
+    );
+  pointer-events: none;
+}
+
+/* Decorative grid layer. IMPORTANT: the mask must live on this pseudo
+   element — applying it to the wrapper would fade out all page content. */
+.hero-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.16) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.16) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
+  pointer-events: none;
+}
+
+/* ---------------------------------- */
+/* Animations                         */
+/* ---------------------------------- */
+@keyframes ls-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ls-scan {
+  0% {
+    transform: translateY(-6%);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(106%);
+    opacity: 0;
+  }
+}
+
+@keyframes ls-ping-soft {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  70%,
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+@keyframes ls-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.animate-fade-up {
+  animation: ls-fade-up 0.5s ease-out both;
+}
+
+.animate-scan {
+  animation: ls-scan 1.8s ease-in-out infinite;
+}
+
+.animate-ping-soft {
+  animation: ls-ping-soft 1.9s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.animate-indeterminate {
+  animation: ls-indeterminate 1.4s ease-in-out infinite;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------- */
+/* Micro-interaction animations       */
+/* ---------------------------------- */
+@keyframes ls-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ls-page-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ls-header-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Entrance utilities: opacity + transform only (cheap to paint). */
+.animate-rise {
+  animation: ls-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-page-fade {
+  animation: ls-page-fade 0.22s ease-out both;
+}
+
+.animate-header-in {
+  animation: ls-header-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Short stagger steps for entrance sequences. */
+.anim-delay-1 { animation-delay: 0.06s; }
+.anim-delay-2 { animation-delay: 0.12s; }
+.anim-delay-3 { animation-delay: 0.18s; }
+.anim-delay-4 { animation-delay: 0.24s; }
+.anim-delay-5 { animation-delay: 0.3s; }
+.anim-delay-6 { animation-delay: 0.36s; }
+
+/* Staggered entrance for child lists and grids. */
+.stagger-children > * {
+  animation: ls-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.4s; }
+
+/* Brief, restrained pressed states. */
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn-secondary {
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.15s ease;
+}
+
+.btn-secondary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* ---------------------------------- */
+/* Reduced motion                     */
+/* ---------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
