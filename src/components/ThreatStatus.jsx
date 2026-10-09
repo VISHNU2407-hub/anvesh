@@ -45,9 +45,11 @@ const STATES = {
 
 function resolveState(status) {
   const key = String(status ?? '').toLowerCase()
-  if (key === 'malicious' || key === 'known_malicious') return STATES.malicious
-  if (key === 'clean' || key === 'no_match' || key === 'safe') return STATES.clean
+  // Backend reputation_status values (new contract)
+  if (key === 'threat_detected' || key === 'malicious' || key === 'known_malicious') return STATES.malicious
+  if (key === 'no_known_threat' || key === 'clean' || key === 'no_match' || key === 'safe') return STATES.clean
   if (key === 'not_checked' || key === 'not-checked') return STATES.not_checked
+  // Anything else (including 'unavailable', error reasons) -> unable to verify
   return STATES.unavailable
 }
 

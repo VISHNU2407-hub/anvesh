@@ -11,6 +11,7 @@ from __future__ import annotations
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
 from .config import get_settings
@@ -26,6 +27,19 @@ app = FastAPI(
     title="LinkShield AI Backend",
     version="0.3.0",
     description="Part 3: Backend + Threat Intelligence Integration",
+)
+
+# Safe CORS: only allow the configured frontend origins (defaults to the
+# Vite dev/preview origins at 5173/4173 on localhost/127.0.0.1). No wildcards,
+# no reflected origins, no credentials needed for this API.
+_settings = get_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(_settings.cors_allowed_origins),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Accept", "Authorization"],
+    max_age=600,
 )
 
 # Register the real rule-based detection engine at application startup using

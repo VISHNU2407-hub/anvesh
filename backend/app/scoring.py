@@ -26,7 +26,7 @@ reputation_status, advice. Results are never fabricated:
 Consistency contract (enforced by regression tests)::
 
     confirmed_malicious -> risk_level high          (provider match)
-    suspicious          -> risk_level medium/high   (>= 1 strong finding)
+    suspicious          -> risk_level low/medium    (>= 1 strong finding; high only via provider)
     unknown             -> risk_level unknown/low   (weak or missing evidence)
     verified_safe       -> risk_level low           (reserved; not emitted)
 """
