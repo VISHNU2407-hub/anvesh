@@ -31,12 +31,14 @@ class Verdict(str, Enum):
       known-threat match. This is the only status backed by reliable evidence
       of malice.
     - SUSPICIOUS: detection engines produced findings that need human review.
-    - UNKNOWN: evidence was insufficient - nothing matched but checks were
-      unavailable or detection could not run. This means *needs
+    - UNKNOWN: evidence was insufficient - this covers weak-signal-only
+      results, checks that were unavailable or detection that could not run,
+      and a completed lookup that returned no known threat. This means *needs
       verification* and is NEVER a claim that the URL is safe.
-    - VERIFIED_SAFE: the reputation lookup completed with no known-threat
-      match AND no detection signal fired AND detection ran to completion.
-      Still not an absolute guarantee (advice says so explicitly).
+    - VERIFIED_SAFE: reserved for an explicit, documented positive-
+      verification step. The current implementation has none - "no match in
+      Google Safe Browsing" does not prove a URL is safe, so this value is
+      kept for API compatibility but is not emitted.
     """
 
     CONFIRMED_MALICIOUS = "confirmed_malicious"
@@ -49,8 +51,9 @@ class ReputationStatus(str, Enum):
     """Outcome of the external reputation check.
 
     - THREAT_DETECTED: Google confirmed the URL matches a known threat list.
-    - NO_KNOWN_THREAT: Google reported no known threat for this URL (not a
-      guarantee of safety).
+    - NO_KNOWN_THREAT: Google reported no known threat for this URL. This is
+      NOT a guarantee of safety and does not by itself verify the URL as
+      safe; the response verdict for such a URL is ``unknown``.
     - UNAVAILABLE: The check could not be completed (missing key, timeout,
       quota, auth, or API failure). We must NOT claim the URL is safe.
     """

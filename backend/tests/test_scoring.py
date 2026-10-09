@@ -1,5 +1,11 @@
 from app.models import Confidence, Finding, ReputationStatus, RiskLevel, Severity, Verdict
-from app.scoring import build_response, compute_risk_level, compute_score, compute_verdict
+from app.scoring import (
+    THREAT_SCORE_FLOOR,
+    build_response,
+    compute_risk_level,
+    compute_score,
+    compute_verdict,
+)
 from app.threat_intel.base import ReputationResult
 
 
@@ -88,14 +94,153 @@ def test_verdict_unknown_when_evidence_insufficient():
     assert compute_verdict([], rep) == Verdict.UNKNOWN
 
 
-def test_verdict_verified_safe_requires_completed_lookup_and_clean_detection():
+def test_verdict_never_verified_safe_without_explicit_verification():
+    # A completed lookup with NO match is NOT proof of safety: the result is
+    # unknown (needs verification), never verified_safe.
     rep = ReputationResult.no_known_threat("gsb")
-    assert compute_verdict([], rep) == Verdict.VERIFIED_SAFE
-    # Same clean findings but detection could NOT run -> not verified_safe.
+    assert compute_verdict([], rep) == Verdict.UNKNOWN
+    # Same when detection could NOT run.
     assert compute_verdict([], rep, detection_ok=False) == Verdict.UNKNOWN
-    # Same clean detection but reputation unavailable -> not verified_safe.
+    # Same when reputation was unavailable.
     rep_down = ReputationResult.unavailable("gsb", "timeout")
     assert compute_verdict([], rep_down) == Verdict.UNKNOWN
+
+
+def test_verdict_verified_safe_is_never_emitted():
+    """Regression: GSB "no match" must not be reported as verified_safe."""
+    for reputation in (
+        ReputationResult.no_known_threat("gsb"),
+        ReputationResult.unavailable("gsb", "timeout"),
+    ):
+        for detection_ok in (True, False):
+            for findings in ([], [_finding(Severity.LOW)]):
+                assert compute_verdict(findings, reputation, detection_ok) != Verdict.VERIFIED_SAFE
+
+
+# --- Risk-level / finding-severity consistency ------------------------------
+
+HIGH_FINDING = Finding(
+    engine="linkshield_rule_engine",
+    rule_id="lookalike_domain",
+    title="Possible lookalike domain",
+    severity=Severity.HIGH,
+    confidence=Confidence.MEDIUM,
+)
+
+
+def _rule_finding(rule_id: str, severity: Severity, confidence=Confidence.MEDIUM) -> Finding:
+    return Finding(
+        engine="linkshield_rule_engine",
+        rule_id=rule_id,
+        title=rule_id,
+        severity=severity,
+        confidence=confidence,
+    )
+
+
+def test_high_severity_finding_never_reports_low_risk():
+    """A single HIGH finding scores 30, but the risk level must not be 'low'."""
+    rep = ReputationResult.no_known_threat("gsb")
+    findings = [HIGH_FINDING]
+    score = compute_score(findings, rep)
+    assert score == 30
+    assert compute_risk_level(score, findings, rep) == RiskLevel.MEDIUM
+    assert compute_verdict(findings, rep) == Verdict.SUSPICIOUS
+
+
+def test_userinfo_trick_high_confidence_is_medium_not_low():
+    rep = ReputationResult.no_known_threat("gsb")
+    findings = [
+        _rule_finding("userinfo_trick", Severity.HIGH, Confidence.HIGH)
+    ]
+    score = compute_score(findings, rep)
+    assert score == 30
+    assert compute_risk_level(score, findings, rep) == RiskLevel.MEDIUM
+    # ...and still only suspicious, never confirmed malicious.
+    assert compute_verdict(findings, rep) == Verdict.SUSPICIOUS
+
+
+def test_critical_finding_does_not_become_confirmed_malicious():
+    rep = ReputationResult.no_known_threat("gsb")
+    findings = [_rule_finding("redirect_to_dangerous_scheme", Severity.CRITICAL)]
+    assert compute_verdict(findings, rep) == Verdict.SUSPICIOUS
+    assert compute_risk_level(compute_score(findings, rep), findings, rep) in {
+        RiskLevel.MEDIUM,
+        RiskLevel.HIGH,
+    }
+
+
+def test_score_thresholds_are_clear_and_monotonic():
+    rep = ReputationResult.no_known_threat("gsb")
+    assert compute_risk_level(39, [], rep) == RiskLevel.LOW
+    assert compute_risk_level(40, [], rep) == RiskLevel.MEDIUM
+    assert compute_risk_level(69, [], rep) == RiskLevel.MEDIUM
+    assert compute_risk_level(70, [], rep) == RiskLevel.HIGH
+
+
+def test_confirmed_threat_dominates_any_findings():
+    """A provider match is high risk + confirmed_malicious, whatever else fired."""
+    rep = ReputationResult.threat_detected("gsb", [])
+    findings = [_rule_finding("suspicious_keywords", Severity.MEDIUM)]
+    score = compute_score(findings, rep)
+    assert score == THREAT_SCORE_FLOOR == 75
+    assert compute_risk_level(score, findings, rep) == RiskLevel.HIGH
+    assert compute_verdict(findings, rep) == Verdict.CONFIRMED_MALICIOUS
+
+
+def test_benign_url_is_low_risk_but_unknown_verdict():
+    """A clean URL is low risk yet NOT verified safe (no proof of safety)."""
+    rep = ReputationResult.no_known_threat("gsb")
+    assert compute_score([], rep) == 0
+    assert compute_risk_level(0, [], rep) == RiskLevel.LOW
+    assert compute_verdict([], rep) == Verdict.UNKNOWN
+
+
+# --- Weak signals (credential-lure keywords) --------------------------------
+
+
+def test_keyword_only_finding_is_not_suspicious():
+    """A lone keyword match is weak evidence -> unknown, not suspicious."""
+    rep = ReputationResult.no_known_threat("gsb")
+    findings = [_rule_finding("suspicious_keywords", Severity.MEDIUM)]
+    assert compute_score(findings, rep) == 15
+    assert compute_verdict(findings, rep) == Verdict.UNKNOWN
+    # Weak evidence stays low risk (it never reaches medium/high).
+    assert compute_risk_level(15, findings, rep) == RiskLevel.LOW
+
+
+def test_keyword_plus_independent_signal_is_suspicious():
+    """Keywords corroborated by an independent finding do count."""
+    rep = ReputationResult.no_known_threat("gsb")
+    findings = [
+        _rule_finding("suspicious_keywords", Severity.MEDIUM),
+        _rule_finding("plain_http_scheme", Severity.MEDIUM),
+    ]
+    assert compute_verdict(findings, rep) == Verdict.SUSPICIOUS
+
+
+def test_two_weak_keyword_findings_still_unknown():
+    rep = ReputationResult.no_known_threat("gsb")
+    findings = [_rule_finding("suspicious_keywords", Severity.MEDIUM) for _ in range(2)]
+    assert compute_verdict(findings, rep) == Verdict.UNKNOWN
+
+
+def test_build_response_verdicts():
+    clean = build_response(
+        "https://example.com", [], ReputationResult.no_known_threat("gsb")
+    )
+    # No known threat is not proof of safety: unknown, clearly explained.
+    assert clean.verdict == Verdict.UNKNOWN
+    assert clean.risk_level == RiskLevel.LOW
+    assert "No known threats found; safety is not guaranteed." in clean.advice
+
+    crashed = build_response(
+        "https://example.com", [], ReputationResult.no_known_threat("gsb"),
+        detection_ok=False,
+    )
+    assert crashed.verdict == Verdict.UNKNOWN
+    assert crashed.risk_level == RiskLevel.UNKNOWN
+    assert "verification is needed" in crashed.advice
 
 
 def test_failed_detection_forces_unknown_risk_when_no_findings():
@@ -122,19 +267,3 @@ def test_verdict_never_says_safe_from_missing_data():
             assert verdict != Verdict.VERIFIED_SAFE
             assert verdict != Verdict.CONFIRMED_MALICIOUS
             assert verdict == Verdict.UNKNOWN
-
-
-def test_build_response_verdicts():
-    clean = build_response(
-        "https://example.com", [], ReputationResult.no_known_threat("gsb")
-    )
-    assert clean.verdict == Verdict.VERIFIED_SAFE
-    assert "not an absolute guarantee" in clean.advice
-
-    crashed = build_response(
-        "https://example.com", [], ReputationResult.no_known_threat("gsb"),
-        detection_ok=False,
-    )
-    assert crashed.verdict == Verdict.UNKNOWN
-    assert crashed.risk_level == RiskLevel.UNKNOWN
-    assert "verification is needed" in crashed.advice
