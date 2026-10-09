@@ -1,9 +1,15 @@
 """Combine reputation + detection findings into a consistent verdict.
 
-Produces the core response fields: risk_level, score, findings,
+Produces the core response fields: risk_level, verdict, score, findings,
 reputation_status, advice. Results are never fabricated:
 - UNAVAILABLE reputation never counts as "safe".
 - A confirmed threat always yields a HIGH risk level.
+- "verified_safe" requires BOTH a completed reputation lookup with no known
+  threat AND detection findings that are empty AND detection that ran to
+  completion - it is never granted merely because no pattern matched.
+- Failed detection engines (``detection_ok=False``) force an "unknown"
+  verdict when there is nothing else to go on: missing evidence is not
+  evidence of safety.
 """
 
 from __future__ import annotations
@@ -17,6 +23,7 @@ from .models import (
     ReputationStatus,
     RiskLevel,
     Severity,
+    Verdict,
 )
 from .threat_intel.base import ReputationResult
 
@@ -43,12 +50,18 @@ def compute_score(findings: List[Finding], reputation: ReputationResult) -> int:
 
 
 def compute_risk_level(
-    score: int, findings: List[Finding], reputation: ReputationResult
+    score: int,
+    findings: List[Finding],
+    reputation: ReputationResult,
+    detection_ok: bool = True,
 ) -> RiskLevel:
     if reputation.status == ReputationStatus.THREAT_DETECTED:
         return RiskLevel.HIGH
-    # Reputation unavailable and nothing else to go on -> we cannot judge.
-    if reputation.status == ReputationStatus.UNAVAILABLE and not findings:
+    # Nothing to judge on: reputation unavailable or detection failed with no
+    # findings to compensate -> we cannot determine a risk.
+    if not findings and (
+        reputation.status == ReputationStatus.UNAVAILABLE or not detection_ok
+    ):
         return RiskLevel.UNKNOWN
     if score >= _HIGH:
         return RiskLevel.HIGH
@@ -57,8 +70,41 @@ def compute_risk_level(
     return RiskLevel.LOW
 
 
+def compute_verdict(
+    findings: List[Finding],
+    reputation: ReputationResult,
+    detection_ok: bool = True,
+) -> Verdict:
+    """Map the evidence to one of the four explicit verdicts.
+
+    Order of evidence (strongest first):
+    1. Provider-confirmed threat match -> CONFIRMED_MALICIOUS (the only
+       status that claims confirmed malice; only reliable external evidence
+       may produce it).
+    2. Any detection finding -> SUSPICIOUS (something must be reviewed).
+    3. Detection could not run to completion -> UNKNOWN (missing evidence
+       must never be scored as clean).
+    4. Completed lookup with no known threat AND no findings ->
+       VERIFIED_SAFE (two independent signals; advice still caveats it).
+    5. Everything else (no findings, reputation unavailable) -> UNKNOWN.
+    """
+    if reputation.status == ReputationStatus.THREAT_DETECTED:
+        return Verdict.CONFIRMED_MALICIOUS
+    if findings:
+        return Verdict.SUSPICIOUS
+    if not detection_ok:
+        return Verdict.UNKNOWN
+    if reputation.status == ReputationStatus.NO_KNOWN_THREAT:
+        return Verdict.VERIFIED_SAFE
+    return Verdict.UNKNOWN
+
+
 def _build_advice(
-    risk_level: RiskLevel, findings: List[Finding], reputation: ReputationResult
+    risk_level: RiskLevel,
+    findings: List[Finding],
+    reputation: ReputationResult,
+    verdict: Verdict,
+    detection_ok: bool,
 ) -> str:
     parts: List[str] = []
 
@@ -84,6 +130,20 @@ def _build_advice(
         titles = "; ".join(f.title for f in findings)
         parts.append(f"Detection engine(s) flagged: {titles}.")
 
+    if not detection_ok:
+        parts.append(
+            "One or more detection engines failed during this analysis, so "
+            "the URL could not be fully inspected - verification is needed."
+        )
+
+    if verdict == Verdict.VERIFIED_SAFE:
+        parts.append(
+            "Verified: the reputation lookup completed with no known-threat "
+            "match and no detection signal fired. This is a positive signal, "
+            "not an absolute guarantee - if the link arrived unexpectedly, "
+            "verify it before use."
+        )
+
     if risk_level == RiskLevel.UNKNOWN:
         parts.append("Automated analysis was inconclusive; verify manually before trusting this URL.")
 
@@ -91,14 +151,19 @@ def _build_advice(
 
 
 def build_response(
-    url: str, findings: List[Finding], reputation: ReputationResult
+    url: str,
+    findings: List[Finding],
+    reputation: ReputationResult,
+    detection_ok: bool = True,
 ) -> AnalyzeResponse:
     score = compute_score(findings, reputation)
-    risk_level = compute_risk_level(score, findings, reputation)
-    advice = _build_advice(risk_level, findings, reputation)
+    verdict = compute_verdict(findings, reputation, detection_ok)
+    risk_level = compute_risk_level(score, findings, reputation, detection_ok)
+    advice = _build_advice(risk_level, findings, reputation, verdict, detection_ok)
     return AnalyzeResponse(
         url=url,
         risk_level=risk_level,
+        verdict=verdict,
         score=score,
         findings=findings,
         reputation_status=reputation.status,

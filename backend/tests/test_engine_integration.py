@@ -27,12 +27,19 @@ BENIGN_URL = "https://example.com/"
 # Suspicious on several independent rules: raw IP host, plain http,
 # open-redirect query parameter, credential-lure path wording.
 SUSPICIOUS_URL = "http://192.168.10.5/login?redirect=http://evil.test/"
+# New rule coverage: typosquat brand, obfuscated IP, offsite redirect target.
+LOOKALIKE_URL = "https://paypa1.com/login"
+OBFUSCATED_IP_URL = "http://2130706433/login"
+OFFSITE_REDIRECT_URL = (
+    "https://example.com/out?redirect=https%3A%2F%2Fevil.test/phish"
+)
 
 ALLOWED_SEVERITIES = {s.value for s in Severity}
 ALLOWED_CONFIDENCE = {c.value for c in Confidence}
 RESPONSE_KEYS = {
     "url",
     "risk_level",
+    "verdict",
     "score",
     "findings",
     "reputation_status",
@@ -122,6 +129,67 @@ def test_valid_url_returns_expected_json(client_safe):
         assert f["confidence"] in ALLOWED_CONFIDENCE
     assert 0 <= data["score"] <= 100
     assert data["advice"]
+    assert data["verdict"] in {
+        "confirmed_malicious", "suspicious", "unknown", "verified_safe"
+    }
+
+
+def test_lookalike_domain_detected_through_endpoint(client_safe):
+    resp = client_safe.post("/api/analyze", json={"url": LOOKALIKE_URL})
+    assert resp.status_code == 200
+    data = resp.json()
+    rule_ids = {f["rule_id"] for f in data["findings"]}
+    assert "lookalike_domain" in rule_ids
+    assert data["verdict"] == "suspicious"
+    assert data["risk_level"] in {"medium", "high"}
+    assert any(f["confidence"] in ALLOWED_CONFIDENCE for f in data["findings"])
+
+
+def test_obfuscated_ip_detected_through_endpoint(client_safe):
+    resp = client_safe.post("/api/analyze", json={"url": OBFUSCATED_IP_URL})
+    assert resp.status_code == 200
+    data = resp.json()
+    rule_ids = {f["rule_id"] for f in data["findings"]}
+    assert "encoded_ip_host" in rule_ids
+    assert data["verdict"] == "suspicious"
+
+
+def test_offsite_redirect_detected_through_endpoint(client_safe):
+    resp = client_safe.post("/api/analyze", json={"url": OFFSITE_REDIRECT_URL})
+    assert resp.status_code == 200
+    data = resp.json()
+    rule_ids = {f["rule_id"] for f in data["findings"]}
+    assert "redirect_parameter" in rule_ids
+    assert "redirect_to_external_host" in rule_ids
+
+
+def test_normal_url_with_clean_reputation_is_verified_safe(client_safe):
+    """Two independent clean signals -> verified_safe, still caveated."""
+    resp = client_safe.post("/api/analyze", json={"url": BENIGN_URL})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["findings"] == []
+    assert data["reputation_status"] == "no_known_threat"
+    assert data["verdict"] == "verified_safe"
+    assert data["risk_level"] == "low"
+    # Never an unconditional safety claim.
+    assert "not an absolute guarantee" in data["advice"]
+
+
+def test_engine_failure_yields_unknown_not_verified_safe(client_safe, monkeypatch):
+    """False-negative guard: a crashed engine means MISSING evidence,
+    so the result must be unknown/needs-verification, never verified_safe."""
+    def boom(self, context):
+        raise RuntimeError("engine blew up")
+
+    monkeypatch.setattr(LinkShieldDetectionEngine, "analyze", boom)
+    resp = client_safe.post("/api/analyze", json={"url": BENIGN_URL})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["findings"] == []
+    assert data["verdict"] == "unknown"
+    assert data["risk_level"] == "unknown"
+    assert "verification" in data["advice"]
 
 
 def test_real_engine_invoked_for_suspicious_url(client_safe):

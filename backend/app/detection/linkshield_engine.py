@@ -44,11 +44,26 @@ _HIGH_CONFIDENCE_RULES = frozenset(
         "excessive_url_encoding",
         "excessive_length",
         "deep_path",
+        # New rules whose match is directly observable from the URL string
+        # (numeric IP spelling, %XX in host, backslashes, double encoding,
+        # encoded dot segments, redirect-target parsing).
+        "encoded_ip_host",
+        "encoded_hostname",
+        "backslash_obfuscation",
+        "double_encoding",
+        "encoded_dot_segments",
+        "redirect_to_dangerous_scheme",
+        "redirect_to_external_host",
+        "redirect_to_shortener",
     }
 )
 
 # Defensive catch-all: we know analysis failed, not what it would have found.
 _LOW_CONFIDENCE_RULES = frozenset({"analysis_error"})
+
+# Rules in neither set (e.g. lookalike_domain, suspicious_keywords,
+# redirect_parameter) infer intent from a visible match, so they keep the
+# default MEDIUM confidence.
 
 
 def _load_rule_module():

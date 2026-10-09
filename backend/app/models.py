@@ -23,6 +23,28 @@ class RiskLevel(str, Enum):
     HIGH = "high"
 
 
+class Verdict(str, Enum):
+    """Evidence-based verdict that distinguishes four clearly different
+    outcomes (kept separate from the graded ``risk_level``):
+
+    - CONFIRMED_MALICIOUS: an external threat-intelligence source confirmed a
+      known-threat match. This is the only status backed by reliable evidence
+      of malice.
+    - SUSPICIOUS: detection engines produced findings that need human review.
+    - UNKNOWN: evidence was insufficient - nothing matched but checks were
+      unavailable or detection could not run. This means *needs
+      verification* and is NEVER a claim that the URL is safe.
+    - VERIFIED_SAFE: the reputation lookup completed with no known-threat
+      match AND no detection signal fired AND detection ran to completion.
+      Still not an absolute guarantee (advice says so explicitly).
+    """
+
+    CONFIRMED_MALICIOUS = "confirmed_malicious"
+    SUSPICIOUS = "suspicious"
+    UNKNOWN = "unknown"
+    VERIFIED_SAFE = "verified_safe"
+
+
 class ReputationStatus(str, Enum):
     """Outcome of the external reputation check.
 
@@ -88,6 +110,7 @@ class ReputationReport(BaseModel):
 class AnalyzeResponse(BaseModel):
     url: str
     risk_level: RiskLevel
+    verdict: Verdict
     score: int = Field(..., ge=0, le=100)
     findings: List[Finding] = Field(default_factory=list)
     reputation_status: ReputationStatus

@@ -11,8 +11,15 @@ category, and returns everything through one function: `analyze_url(url)`.
   **not** a probability of phishing or compromise.
 - An empty findings list only means no configured rule matched. It is
   **never** reported as proof that a URL is safe or benign.
+- Every result carries a `verification_status` — either `suspicious`
+  (at least one rule fired) or `needs_verification` (no rule matched, or
+  the input could not be parsed). The module has **no "safe" status** at
+  all: without a threat-intelligence feed it can neither confirm malice
+  nor verify safety.
 - The module performs **no network I/O**: it never resolves, fetches, or
   visits a submitted URL. Only Python's standard library is used.
+  Redirect targets found in query strings are decoded and parsed **as
+  text** — never opened.
 
 ## Files
 
@@ -28,8 +35,9 @@ category, and returns everything through one function: `analyze_url(url)`.
 from detection_engine import analyze_url
 
 result = analyze_url("http://192.168.10.5/login?redirect=http://evil.test")
-print(result["risk_score"])     # e.g. 50
-print(result["risk_category"])  # e.g. "elevated_observed_risk"
+print(result["risk_score"])          # e.g. 60
+print(result["risk_category"])       # e.g. "elevated_observed_risk"
+print(result["verification_status"]) # "suspicious" or "needs_verification"
 for finding in result["findings"]:
     print(finding["rule_id"], finding["severity"], finding["evidence"])
 ```
@@ -61,6 +69,7 @@ Every result contains the same keys:
 | `fragment` | `str \| None` | Fragment (without `#`). |
 | `risk_score` | `int \| None` | Heuristic score 0-100; `None` when not scannable. |
 | `risk_category` | `str` | See risk categories below. |
+| `verification_status` | `str` | `suspicious` or `needs_verification` — never "safe". See verification status below. |
 | `findings` | `list[dict]` | Structured findings, sorted by descending score. |
 | `findings_count` | `int` | `len(findings)`. |
 | `disclaimer` | `str` | Always-present limits-of-analysis statement. |
@@ -81,17 +90,20 @@ Each finding contains: `rule_id`, `title`, `severity`, `score`,
   "path": "/login",
   "query": "redirect=http://evil.test",
   "fragment": "",
-  "risk_score": 50,
+  "risk_score": 60,
   "risk_category": "elevated_observed_risk",
+  "verification_status": "suspicious",
   "findings": [
     {"rule_id": "ip_address_host", "severity": "high", "score": 20,
      "title": "Raw IP address as host", "evidence": "hostname='192.168.10.5'", "...": "..."},
     {"rule_id": "plain_http_scheme", "severity": "medium", "score": 10, "...": "..."},
     {"rule_id": "redirect_parameter", "severity": "medium", "score": 10, "...": "..."},
+    {"rule_id": "redirect_to_external_host", "severity": "medium", "score": 10,
+     "evidence": "param='redirect' target_host='evil.test'", "...": "..."},
     {"rule_id": "suspicious_keywords", "severity": "medium", "score": 10,
      "evidence": "matched=login", "...": "..."}
   ],
-  "findings_count": 4,
+  "findings_count": 5,
   "disclaimer": "Heuristic rule-based triage only; ..."
 }
 ```
@@ -107,6 +119,7 @@ Each finding contains: `rule_id`, `title`, `severity`, `score`,
   "path": null, "query": null, "fragment": null,
   "risk_score": null,
   "risk_category": "indeterminate",
+  "verification_status": "suspicious",
   "findings": [
     {"rule_id": "dangerous_scheme", "severity": "critical", "score": 30,
      "title": "Dangerous URL scheme", "evidence": "scheme='javascript'", "...": "..."}
@@ -144,10 +157,14 @@ capped at 100.
 | --- | --- | --- | --- |
 | `unsupported_scheme` | Scheme is not `http`/`https` (e.g. `ftp:`, `ws:`) | critical | 30 |
 | `dangerous_scheme` | Unparseable input uses `javascript:`/`data:`/`file:`/... (not scored) | critical | 30 |
+| `redirect_to_dangerous_scheme` | A redirect parameter points at a `javascript:`/`data:`/`vbscript:` target | critical | 30 |
 | `malformed_input` | Input failed validation (not scored) | high | 20 |
 | `ip_address_host` | Hostname is a raw IPv4/IPv6 literal | high | 20 |
 | `userinfo_trick` | `@` in the authority (e.g. `trusted.com@evil.com`) | high | 20 |
 | `punycode_hostname` | Host contains `xn--` (IDN homograph risk) | high | 20 |
+| `lookalike_domain` | Hostname impersonates a known brand (typosquat, leet speak, or lure affix) while not being on that brand's official domain | high | 20 |
+| `encoded_ip_host` | Single-label hostname that is an obfuscated IPv4 literal (`2130706433`, `0x7f000001`) | high | 20 |
+| `encoded_hostname` | Hostname contains `%XX` sequences (decoded by browsers before resolution) | high | 20 |
 | `non_ascii_hostname` | Host contains non-ASCII characters | medium | 10 |
 | `plain_http_scheme` | URL uses unencrypted `http://` | medium | 10 |
 | `suspicious_tld` | TLD is on the static abuse-prone list (`xyz`, `tk`, `top`, ...) | medium | 10 |
@@ -159,6 +176,11 @@ capped at 100.
 | `double_slash_path` | `//` appears inside the path | medium | 10 |
 | `redirect_parameter` | Query has an open-redirect-style parameter (`redirect`, `next`, `url`, ...) | medium | 10 |
 | `excessive_url_encoding` | 8+ `%XX` sequences in the URL | medium | 10 |
+| `double_encoding` | 2+ `%25XX` sequences (percent-encoding applied twice) | medium | 10 |
+| `encoded_dot_segments` | `%2e%2e` / `%2e%2f` spell `../` in encoded form | medium | 10 |
+| `backslash_obfuscation` | Raw `\` in the URL (browsers treat it as `/`, readers usually do not) | medium | 10 |
+| `redirect_to_external_host` | A redirect parameter carries an absolute URL whose host differs from this URL's host (target parsed as text, never fetched) | medium | 10 |
+| `redirect_to_shortener` | A redirect parameter points at a known URL shortener | medium | 10 |
 | `unqualified_hostname` | Hostname has no dot (localhost / intranet name) | low | 5 |
 | `many_hyphens` | 4+ hyphens in the hostname | low | 5 |
 | `deep_path` | 6+ path segments | low | 5 |
@@ -167,7 +189,8 @@ capped at 100.
 | `analysis_error` | Defensive catch-all; result must not be read as a verdict (not scored) | high | 20 |
 
 Static lists (`SUSPICIOUS_TLDS`, `URL_SHORTENERS`, `SUSPICIOUS_KEYWORDS`,
-`REDIRECT_PARAM_NAMES`) are module-level constants and easy to extend.
+`REDIRECT_PARAM_NAMES`, `BRAND_OFFICIAL_DOMAINS`, `BRAND_AFFIX_WORDS`,
+`BRAND_TYPO_DENYLIST`) are module-level constants and easy to extend.
 
 ## Risk categories
 
@@ -181,6 +204,19 @@ Static lists (`SUSPICIOUS_TLDS`, `URL_SHORTENERS`, `SUSPICIOUS_KEYWORDS`,
 
 Category names deliberately say *observed risk*: they describe what these
 rules saw, not a verdict on the URL.
+
+## Verification status
+
+| Status | Fires when |
+| --- | --- |
+| `suspicious` | At least one rule fired (or the input uses a dangerous scheme such as `javascript:`). There is concrete evidence for a human to review. |
+| `needs_verification` | The input could not be parsed, **or** a valid URL produced no findings. An explicit *unknown* — never "safe". |
+
+The vocabulary deliberately contains **no** `safe` value: this module has
+no threat-intelligence feed and performs no live checks, so it can neither
+confirm malice nor verify a URL as safe. The backend layer combines these
+findings with Google Safe Browsing before assigning its four-way `verdict`
+(`confirmed_malicious` / `suspicious` / `unknown` / `verified_safe`).
 
 ## Running the tests
 
@@ -197,7 +233,7 @@ python -m unittest -v          # discovery from the current directory
 python test_detection_engine.py
 ```
 
-Expected result: `Ran 49 tests ... OK`. If `python` is not on your PATH,
+Expected result: `Ran 80 tests ... OK`. If `python` is not on your PATH,
 use the `py` launcher (`py -m unittest discover -p "test_*.py" -v`) or the
 full path to your interpreter.
 
@@ -205,7 +241,14 @@ Test coverage: valid URLs, invalid/malformed URLs (including non-string
 input and a fuzz list), each major suspicious pattern, risk-band
 boundaries and score capping, edge cases (IDN hosts, localhost, trailing
 dots, very long URLs), the exact output contract, determinism, and a
-static check that the module contains no network calls.
+static check that the module contains no network calls. Plus the three
+improvement areas: lookalike-domain detection (true positives **and**
+false-positive guards such as `pineapple`/`upstream`/official domains),
+URL obfuscation patterns (numeric IPs, `%XX` hosts, double encoding,
+backslashes), redirect-target analysis (external / shortener /
+script-scheme targets, with same-host and relative targets left alone),
+and the `verification_status` contract (a clean run is
+`needs_verification`, never "safe").
 
 ## Known limitations
 
@@ -213,15 +256,20 @@ static check that the module contains no network calls.
   machine learning, no reputation feeds, no live DNS/WHOIS/HTTP.
 - **No safety guarantee.** Zero findings means "no configured rule
   matched", not "safe". Phishing pages on popular domains with clean
-  URLs will score low.
-- **Static lists** go stale; new abuse TLDs, shorteners, or lure wording
-  require updating the constants.
+  URLs will score low — that is exactly why `verification_status` reports
+  them as `needs_verification` rather than anything reassuring.
+- **Static lists** go stale; new abuse TLDs, shorteners, lure wording or
+  impersonated brands require updating the constants.
 - **Plain strings only.** IDN homographs are flagged when punycode or
   non-ASCII appears, but no visual-similarity (confusables) comparison is
-  performed; decimal/octal IP encodings are not recognized as IPs.
+  performed. Decimal and `0x`-hex single-label IP literals are recognised
+  (`encoded_ip_host`); dotted-octal spellings are not. Lookalike matching
+  is a curated heuristic (leet + affix + one-edit typos) and will miss
+  novel spellings.
 - **No redirect resolution.** Shorteners and redirect parameters are
   flagged but never followed, so the final destination is unknown by
-  design (no live requests).
+  design (no live requests). Redirect targets embedded in query values
+  are decoded and parsed **as text** only.
 - Keyword rules can produce false positives on legitimate paths (e.g.
   `/login` on a real site) - findings explain themselves so a human can
   judge.

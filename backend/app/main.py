@@ -14,11 +14,11 @@ from fastapi import Depends, FastAPI, HTTPException
 from starlette.concurrency import run_in_threadpool
 
 from .config import get_settings
-from .detection import DetectionContext, register_engine, run_detection
+from .detection import DetectionContext, register_engine, run_detection_report
 from .detection.linkshield_engine import LinkShieldDetectionEngine
 from .models import AnalyzeRequest, AnalyzeResponse
 from .scoring import build_response
-from .threat_intel.base import ThreatIntelProvider
+from .threat_intel.base import ReputationResult, ThreatIntelProvider
 from .threat_intel.google_safe_browsing import GoogleSafeBrowsingProvider
 from .url_validator import InvalidURLError, validate_and_normalize_url
 
@@ -69,13 +69,26 @@ async def analyze(
     )
 
     # 2. Run modular detection engines (in a thread to avoid blocking the loop).
+    #    The report records which engines failed: a crashed engine means the
+    #    evidence is INCOMPLETE, which must not be scored like a clean run.
+    detection_ok = True
     try:
-        findings = await run_in_threadpool(run_detection, context)
+        report = await run_in_threadpool(run_detection_report, context)
+        findings = report.findings
+        detection_ok = report.complete
     except Exception:
         findings = []
+        detection_ok = False
 
     # 3. Reputation lookup (never fetches the URL; failures -> UNAVAILABLE).
-    reputation = await provider.check(normalized)
+    #    The provider contract is "never raise", but a third-party provider
+    #    bug must degrade honestly instead of failing the request.
+    try:
+        reputation = await provider.check(normalized)
+    except Exception:
+        reputation = ReputationResult.unavailable(
+            getattr(provider, "name", "provider"), "provider_error"
+        )
 
     # 4. Combine into a consistent response.
-    return build_response(normalized, findings, reputation)
+    return build_response(normalized, findings, reputation, detection_ok=detection_ok)

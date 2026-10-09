@@ -4,9 +4,12 @@ from app.detection import DetectionContext, DetectionEngine, get_engines, regist
 from app.detection.registry import clear_engines
 from app.main import app
 from app.models import Finding, Severity
+from app.threat_intel.base import ThreatIntelProvider
 from app.threat_intel.google_safe_browsing import GoogleSafeBrowsingProvider
 
 from .conftest import make_client
+
+ALLOWED_VERDICTS = {"confirmed_malicious", "suspicious", "unknown", "verified_safe"}
 
 
 class _FlagEngine(DetectionEngine):
@@ -65,6 +68,7 @@ def test_confirmed_threat_response(client_threat):
     assert resp.status_code == 200
     data = resp.json()
     assert data["reputation_status"] == "threat_detected"
+    assert data["verdict"] == "confirmed_malicious"  # reliable external evidence
     assert data["risk_level"] == "high"
     assert data["score"] >= 75
     assert isinstance(data["findings"], list)
@@ -78,6 +82,8 @@ def test_no_known_threat_response(client_safe):
     assert data["reputation_status"] == "no_known_threat"
     assert data["risk_level"] == "low"
     assert data["score"] == 0
+    # Clean reputation + clean detection = the only path to verified_safe.
+    assert data["verdict"] == "verified_safe"
 
 
 def test_unavailable_response(client_unavailable):
@@ -86,6 +92,8 @@ def test_unavailable_response(client_unavailable):
     data = resp.json()
     assert data["reputation_status"] == "unavailable"
     assert data["risk_level"] == "unknown"
+    # No findings + unavailable reputation = insufficient evidence.
+    assert data["verdict"] == "unknown"
     assert data["reputation"]["error_reason"] == "quota_exceeded"
 
 
@@ -234,7 +242,35 @@ def test_e2e_missing_api_key_endpoint():
     data = resp.json()
     assert data["reputation_status"] == "unavailable"
     assert data["risk_level"] == "unknown"
+    # Missing evidence must never be labelled safe or verified_safe.
+    assert data["verdict"] == "unknown"
     assert data["reputation"]["error_reason"] == "missing_api_key"
+    # The advice explicitly declines to draw a conclusion.
+    assert "No conclusion about known threats can be drawn" in data["advice"]
+
+
+class _BoomProvider(ThreatIntelProvider):
+    """A provider that violates the never-raise contract."""
+
+    name = "boom_provider"
+
+    async def check(self, url: str):
+        raise RuntimeError("provider exploded with key=super-secret-key inside")
+
+
+def test_provider_exception_degrades_gracefully():
+    """A provider bug must degrade to 'unavailable', never a 500."""
+    with _ContextManager(_BoomProvider()) as client:
+        resp = client.post("/api/analyze", json={"url": "https://example.com/"})
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["reputation_status"] == "unavailable"
+    assert data["reputation"]["error_reason"] == "provider_error"
+    assert data["risk_level"] == "unknown"
+    assert data["verdict"] == "unknown"
+    # Raw exception text (which may embed secrets) never reaches the client.
+    assert "super-secret-key" not in resp.text
 
 
 def test_e2e_detection_engine_failure_isolated():
@@ -275,10 +311,11 @@ def test_e2e_response_matches_frontend_contract():
 
     data = resp.json()
     assert set(data.keys()) == {
-        "url", "risk_level", "score", "findings",
+        "url", "risk_level", "verdict", "score", "findings",
         "reputation_status", "advice", "reputation",
     }
     assert data["risk_level"] in {"unknown", "low", "medium", "high"}
+    assert data["verdict"] in ALLOWED_VERDICTS
     assert 0 <= data["score"] <= 100
     assert data["reputation_status"] in {"threat_detected", "no_known_threat", "unavailable"}
     assert set(data["reputation"].keys()) == {"provider", "status", "matches", "error_reason"}

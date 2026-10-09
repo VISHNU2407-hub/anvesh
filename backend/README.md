@@ -19,6 +19,7 @@ Interactive API docs (auto-generated): http://127.0.0.1:8000/docs
 {
   "url": "https://example.com/path",
   "risk_level": "unknown",          // unknown | low | medium | high
+  "verdict": "unknown",             // confirmed_malicious | suspicious | unknown | verified_safe
   "score": 0,                        // 0–100
   "findings": [],                    // from detection engines
   "reputation_status": "unavailable",// threat_detected | no_known_threat | unavailable
@@ -32,8 +33,28 @@ Interactive API docs (auto-generated): http://127.0.0.1:8000/docs
 }
 ```
 
-`risk_level`, `score`, `findings`, `reputation_status`, and `advice` are always
-present and consistently shaped.
+`risk_level`, `verdict`, `score`, `findings`, `reputation_status`, and
+`advice` are always present and consistently shaped.
+
+### `verdict` — four explicitly distinguished outcomes
+
+| Verdict | Emitted when | Evidence required |
+|---|---|---|
+| `confirmed_malicious` | Google Safe Browsing returned a threat-list match | Reliable external evidence — the only status that claims confirmed malice |
+| `suspicious` | Detection engines produced at least one finding | Rule matches to review; does **not** claim confirmed malice |
+| `unknown` | Nothing matched but evidence is insufficient: reputation check unavailable/failed, or a detection engine crashed (needs verification) | Never emitted as "safe" |
+| `verified_safe` | Reputation lookup **completed** with no known-threat match **and** detection ran to completion with zero findings | Two independent clean signals; advice still states it is not an absolute guarantee |
+
+Key guarantees:
+
+- A URL is **never** labelled safe merely because no suspicious pattern
+  matched — with no findings and no completed reputation lookup the
+  verdict is `unknown`.
+- If a detection engine crashes, the result is treated as *missing*
+  evidence: `unknown` (and `risk_level: unknown` when there are no other
+  findings), never `verified_safe`.
+- `confirmed_malicious` requires a provider match; heuristic findings alone
+  can only ever reach `suspicious`.
 
 ## Setup
 
@@ -85,8 +106,13 @@ An empty response (`{}`) means **no known threat**; a `matches` array means a
 - **No invented results.** A confirmed match, a "no known match", and an
   "unavailable" check are three distinct, explicit outcomes. When the check
   fails (missing key, timeout, quota, auth, API error) the response reports
-  `reputation_status: "unavailable"` with a machine-readable `error_reason` and
-  `risk_level: "unknown"` — it never claims a URL is safe.
+  `reputation_status: "unavailable"` with a machine-readable `error_reason`,
+  `risk_level: "unknown"` and `verdict: "unknown"` — it never claims a URL
+  is safe.
+- **Missing evidence is not evidence of safety.** Detection engines that
+  crash are recorded (`DetectionReport.failed_engines`) and force the
+  `unknown`/needs-verification outcome instead of degrading silently to
+  "no findings".
 - **Safe input handling.** Only `http`/`https` URLs are accepted; control
   characters, whitespace injection, and over-long inputs are rejected with a
   `400` before any external call.
@@ -100,7 +126,10 @@ An empty response (`{}`) means **no known threat**; a `matches` array means a
 | Request timeout                   | `unavailable`, reason `timeout`                  |
 | Quota exceeded (HTTP 429)         | `unavailable`, reason `quota_exceeded`           |
 | Auth failure (HTTP 401/403)       | `unavailable`, reason `auth_error`               |
+| Malformed provider response       | `unavailable`, reason `invalid_response`         |
+| Unexpected provider exception     | `unavailable`, reason `provider_error` (raw exception text is never returned — it could contain the key) |
 | Other API/network failure         | `unavailable`, reason `api_error` / `connection_error` |
+| Detection engine crash            | Findings from that engine are dropped; `verdict` degrades to `unknown` (never `verified_safe`) |
 
 The endpoint never crashes on provider failures — it degrades to an honest
 "unavailable" result.
@@ -147,8 +176,12 @@ is registered by default and can be replaced.
 Part 2 rule engine (`detection-engine/detection_engine.py`, loaded from the
 repo checkout) to this interface and is registered in `app/main.py` at
 startup as `linkshield_rule_engine`. It analyzes `context.normalized_url`
-purely as a string — it never fetches or opens the submitted URL. See
-`tests/test_engine_integration.py` for endpoint-level coverage.
+purely as a string — it never fetches or opens the submitted URL. The rule
+catalogue covers lookalike/typosquat domains, URL obfuscation (numeric IP
+spellings, percent-encoded hosts, double encoding, backslashes, encoded
+dot segments), suspicious patterns, and redirect-target risks (external
+host / shortener / script-scheme targets — parsed as text, never followed).
+See `tests/test_engine_integration.py` for endpoint-level coverage.
 
 ## Running tests
 
@@ -158,8 +191,11 @@ pytest
 ```
 
 Tests mock all network calls (no real API key or internet required) and cover
-URL validation, scoring, every Google Safe Browsing failure mode, the detection
-registry, and the `/api/analyze` contract.
+URL validation, scoring and the four-way `verdict`, every Google Safe Browsing
+failure mode (including a missing/absent API key and unexpected provider
+exceptions), the detection registry (including engine-failure reporting),
+lookalike/obfuscation/redirect detection with false-positive guards, and the
+`/api/analyze` contract.
 
 ## Project structure
 

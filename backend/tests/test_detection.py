@@ -1,4 +1,11 @@
-from app.detection import DetectionContext, DetectionEngine, get_engines, register_engine, run_detection
+from app.detection import (
+    DetectionContext,
+    DetectionEngine,
+    get_engines,
+    register_engine,
+    run_detection,
+    run_detection_report,
+)
 from app.detection.registry import clear_engines
 from app.models import Finding, Severity
 
@@ -72,3 +79,39 @@ def test_register_rejects_non_engine():
 
     with pytest.raises(TypeError):
         register_engine(object())
+
+
+def test_report_flags_failed_engines():
+    """A crashed engine must be distinguishable from a clean run."""
+    original = get_engines()
+    clear_engines()
+    try:
+        register_engine(_BoomEngine())
+        good = _Engine()
+        register_engine(good)
+        report = run_detection_report(_context())
+        assert report.failed_engines == ["boom_engine"]
+        assert report.complete is False
+        assert [f.engine for f in report.findings] == ["test_engine"]
+        # Backwards-compatible helper returns the same findings.
+        assert run_detection(_context()) == report.findings
+    finally:
+        clear_engines()
+        for e in original:
+            register_engine(e)
+
+
+def test_report_is_complete_when_all_engines_pass():
+    original = get_engines()
+    clear_engines()
+    try:
+        engine = _Engine()
+        register_engine(engine)
+        report = run_detection_report(_context())
+        assert report.failed_engines == []
+        assert report.complete is True
+        assert len(report.findings) == 1
+    finally:
+        clear_engines()
+        for e in original:
+            register_engine(e)
