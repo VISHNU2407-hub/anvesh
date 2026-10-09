@@ -14,7 +14,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from starlette.concurrency import run_in_threadpool
 
 from .config import get_settings
-from .detection import DetectionContext, run_detection
+from .detection import DetectionContext, register_engine, run_detection
+from .detection.linkshield_engine import LinkShieldDetectionEngine
 from .models import AnalyzeRequest, AnalyzeResponse
 from .scoring import build_response
 from .threat_intel.base import ThreatIntelProvider
@@ -26,6 +27,13 @@ app = FastAPI(
     version="0.3.0",
     description="Part 3: Backend + Threat Intelligence Integration",
 )
+
+# Register the real rule-based detection engine at application startup using
+# the existing registry mechanism (this module is imported when the app
+# starts, e.g. `uvicorn app.main:app`). The no-op placeholder stays
+# registered as the pipeline's baseline engine; findings come from
+# LinkShieldDetectionEngine.
+register_engine(LinkShieldDetectionEngine())
 
 
 def get_reputation_provider() -> ThreatIntelProvider:
